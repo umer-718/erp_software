@@ -185,7 +185,7 @@ export default function SalesReportPage() {
       setPermissionsError(true);
       setData(null);
       setError(
-        err.message || "Unable to verify Sales Dashboard permissions."
+        err.message || "Unable to verify Sales Report permissions."
       );
       setLoading(false);
     } finally {
@@ -270,7 +270,7 @@ export default function SalesReportPage() {
 
       console.error("SALES REPORT ERROR:", err);
 
-      setError(err.message || "Failed to load the Sales Dashboard.");
+      setError(err.message || "Failed to load the Sales Report.");
     } finally {
       if (requestId === reportRequestId.current) {
         setLoading(false);
@@ -399,7 +399,7 @@ export default function SalesReportPage() {
 
     if (!canViewRef.current) {
       setError(
-        "You do not have permission to view the Sales Dashboard."
+        "You do not have permission to view the Sales Report."
       );
       return;
     }
@@ -458,7 +458,7 @@ export default function SalesReportPage() {
           </h1>
 
           <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
-            Verifying your Sales Dashboard permissions.
+            Verifying your Sales Report permissions.
           </p>
         </div>
       </main>
@@ -481,7 +481,7 @@ export default function SalesReportPage() {
           </h1>
 
           <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
-            Your Sales Dashboard remains locked because your permissions
+            Your Sales Report remains locked because your permissions
             could not be verified. Please retry.
           </p>
 
@@ -518,7 +518,7 @@ export default function SalesReportPage() {
             </span>
 
             <h1 className="mt-4 text-2xl font-extrabold tracking-tight">
-              Sales Dashboard
+              Sales Report
             </h1>
 
             <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-slate-500 dark:text-slate-400">
@@ -536,7 +536,7 @@ export default function SalesReportPage() {
               </p>
 
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                User Rights → Sales → Sales Dashboard → View
+                User Rights → Sales → Sales Report → View
               </p>
             </div>
           </div>
@@ -576,7 +576,7 @@ export default function SalesReportPage() {
                 </div>
 
                 <h1 className="text-2xl font-extrabold tracking-tight text-slate-950 dark:text-white sm:text-3xl">
-                  Sales Dashboard
+                  Sales Report
                 </h1>
 
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400 sm:text-base">
