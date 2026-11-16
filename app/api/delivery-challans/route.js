@@ -544,7 +544,7 @@ export async function POST(request) {
                     orderedQuantity - previouslyDelivered
                 );
 
-                if (item.quantity > pendingQuantity + 0.000001) {
+                if (item.quantity > pendingQuantity + 1) {
                     await client.query("ROLLBACK");
 
                     return NextResponse.json(

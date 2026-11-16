@@ -1446,8 +1446,8 @@ export default function PurchasePaymentsPage() {
 
                                                 <input
                                                     type="number"
-                                                    min="0.01"
-                                                    step="0.01"
+                                                    min="1"
+                                                    step="1"
                                                     value={form.amount}
                                                     onChange={(event) =>
                                                         updateForm(
@@ -1455,7 +1455,7 @@ export default function PurchasePaymentsPage() {
                                                             event.target.value
                                                         )
                                                     }
-                                                    placeholder="0.00"
+                                                    placeholder="0"
                                                     className={`${inputClass} pl-14`}
                                                     required
                                                 />

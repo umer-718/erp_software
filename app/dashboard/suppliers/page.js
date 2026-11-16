@@ -1203,7 +1203,7 @@ export default function SuppliersPage() {
                                             id="openingBalance"
                                             type="number"
                                             min="0"
-                                            step="0.01"
+                                            step="1"
                                             name="openingBalance"
                                             value={form.openingBalance}
                                             onChange={handleChange}
@@ -1221,7 +1221,7 @@ export default function SuppliersPage() {
                                             id="creditLimit"
                                             type="number"
                                             min="0"
-                                            step="0.01"
+                                            step="1"
                                             name="creditLimit"
                                             value={form.creditLimit}
                                             onChange={handleChange}

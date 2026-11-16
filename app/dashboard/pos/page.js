@@ -2144,7 +2144,7 @@ export default function POSPage() {
                                                         item.product_name
                                                         }`}
                                                     type="number"
-                                                    min="0.001"
+                                                    min="1"
                                                     step="any"
                                                     max={item.available_quantity}
                                                     value={item.quantity}
@@ -2211,7 +2211,7 @@ export default function POSPage() {
                                         <input
                                             type="number"
                                             min="0"
-                                            step="0.01"
+                                            step="1"
                                             value={discount}
                                             onChange={(event) =>
                                                 setDiscount(event.target.value)
@@ -2226,7 +2226,7 @@ export default function POSPage() {
                                         <input
                                             type="number"
                                             min="0"
-                                            step="0.01"
+                                            step="1"
                                             value={tax}
                                             onChange={(event) =>
                                                 setTax(event.target.value)
@@ -2257,7 +2257,7 @@ export default function POSPage() {
                                         <input
                                             type="number"
                                             min="0"
-                                            step="0.01"
+                                            step="1"
                                             value={received}
                                             onChange={(event) =>
                                                 setReceived(event.target.value)
@@ -2466,8 +2466,8 @@ export default function POSPage() {
                                             <input
                                                 required
                                                 type="number"
-                                                min="0.01"
-                                                step="0.01"
+                                                min="1"
+                                                step="1"
                                                 value={cashAmount}
                                                 onChange={(event) =>
                                                     setCashAmount(
@@ -2475,7 +2475,7 @@ export default function POSPage() {
                                                     )
                                                 }
                                                 className={inputClass}
-                                                placeholder="0.00"
+                                                placeholder="0"
                                             />
                                         </div>
 

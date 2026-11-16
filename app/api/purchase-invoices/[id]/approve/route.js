@@ -322,7 +322,7 @@ export async function POST(request, { params }) {
                     Number(receiptItem.quantity_received) -
                     alreadyInvoiced;
 
-                if (invoiceQuantity > remaining + 0.000001) {
+                if (invoiceQuantity > remaining + 1) {
                     throw new Error(
                         `Receipt item ${receiptItemId} has only ${Math.max(0, remaining)} uninvoiced units remaining.`
                     );
@@ -371,7 +371,7 @@ export async function POST(request, { params }) {
         const storedTotal = Number(purchase.total_amount);
 
         if (
-            Math.abs(calculatedTotal - storedTotal) > 0.01
+            Math.abs(calculatedTotal - storedTotal) > 1
         ) {
             throw new Error(
                 "Invoice total does not match its item totals."

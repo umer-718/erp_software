@@ -1393,10 +1393,10 @@ export default function CustomersPage() {
                       name="openingBalance"
                       type="number"
                       min="0"
-                      step="0.01"
+                      step="1"
                       value={form.openingBalance}
                       onChange={handleChange}
-                      placeholder="0.00"
+                      placeholder="0"
                       className={`${inputClass} pl-10`}
                     />
                   </div>
@@ -1419,10 +1419,10 @@ export default function CustomersPage() {
                       name="creditLimit"
                       type="number"
                       min="0"
-                      step="0.01"
+                      step="1"
                       value={form.creditLimit}
                       onChange={handleChange}
-                      placeholder="0.00"
+                      placeholder="0"
                       className={`${inputClass} pl-10`}
                     />
                   </div>

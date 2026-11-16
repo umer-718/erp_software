@@ -2809,8 +2809,8 @@ export default function RFQsPage() {
                                                         <td className="w-32 px-2 py-3">
                                                             <input
                                                                 type="number"
-                                                                min="0.001"
-                                                                step="0.001"
+                                                                min="1"
+                                                                step="1"
                                                                 value={line.quotedQuantity}
                                                                 onChange={(event) =>
                                                                     updateQuoteLine(
@@ -2826,7 +2826,7 @@ export default function RFQsPage() {
                                                             <input
                                                                 type="number"
                                                                 min="0"
-                                                                step="0.01"
+                                                                step="1"
                                                                 value={line.unitPrice}
                                                                 onChange={(event) =>
                                                                     updateQuoteLine(
@@ -2836,14 +2836,14 @@ export default function RFQsPage() {
                                                                     )
                                                                 }
                                                                 className={`${inputClass} min-w-[115px] text-right`}
-                                                                placeholder="0.00"
+                                                                placeholder="0"
                                                             />
                                                         </td>
                                                         <td className="w-32 px-2 py-3">
                                                             <input
                                                                 type="number"
                                                                 min="0"
-                                                                step="0.01"
+                                                                step="1"
                                                                 value={line.discountAmount}
                                                                 onChange={(event) =>
                                                                     updateQuoteLine(
@@ -2859,7 +2859,7 @@ export default function RFQsPage() {
                                                             <input
                                                                 type="number"
                                                                 min="0"
-                                                                step="0.01"
+                                                                step="1"
                                                                 value={line.taxRate}
                                                                 onChange={(event) =>
                                                                     updateQuoteLine(

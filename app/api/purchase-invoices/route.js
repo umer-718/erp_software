@@ -324,7 +324,7 @@ async function validateReceiptItems(
         const remainingQuantity =
             receivedQuantity - alreadyInvoiced;
 
-        if (requestedQuantity > remainingQuantity + 0.000001) {
+        if (requestedQuantity > remainingQuantity + 1) {
             throw new Error(
                 `Cannot invoice ${requestedQuantity} units. ` +
                 `Only ${Math.max(0, remainingQuantity)} units remain uninvoiced ` +

@@ -1373,7 +1373,7 @@ useEffect(() => {
                                                             type="number"
                                                             min="0"
                                                             max={row.pending_quantity}
-                                                            step="0.001"
+                                                            step="1"
                                                             value={
                                                                 quantities[key] ?? ""
                                                             }

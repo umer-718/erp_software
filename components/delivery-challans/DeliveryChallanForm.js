@@ -970,8 +970,8 @@ export default function DeliveryChallanForm({ challanId = null }) {
                         <input
                             className={inputClass}
                             type="number"
-                            min="0.000001"
-                            step="0.000001"
+                            min="1"
+                            step="1"
                             required
                             value={form.exchange_rate}
                             onChange={(event) =>
@@ -1177,7 +1177,7 @@ export default function DeliveryChallanForm({ challanId = null }) {
                                     <input
                                         type="number"
                                         min="0"
-                                        step="0.001"
+                                        step="1"
                                         className={inputClass}
                                         value={draftLine.item_balance}
                                         onChange={(event) =>
@@ -1208,8 +1208,8 @@ export default function DeliveryChallanForm({ challanId = null }) {
                                     Quantity *
                                     <input
                                         type="number"
-                                        min="0.001"
-                                        step="0.001"
+                                        min="1"
+                                        step="1"
                                         className={inputClass}
                                         value={draftLine.quantity}
                                         onChange={(event) =>
@@ -1226,7 +1226,7 @@ export default function DeliveryChallanForm({ challanId = null }) {
                                     <input
                                         type="number"
                                         min="0"
-                                        step="0.01"
+                                        step="1"
                                         className={inputClass}
                                         value={draftLine.unit_price}
                                         onChange={(event) =>
@@ -1243,7 +1243,7 @@ export default function DeliveryChallanForm({ challanId = null }) {
                                     <input
                                         type="number"
                                         min="0"
-                                        step="0.001"
+                                        step="1"
                                         className={inputClass}
                                         value={draftLine.tax_rate}
                                         onChange={(event) =>

@@ -939,8 +939,8 @@ export default function StockAdjustmentPage() {
                 <label className={labelClass}>Quantity</label>
                 <input
                   type="number"
-                  min="0.001"
-                  step="0.001"
+                  min="1"
+                  step="1"
                   inputMode="decimal"
                   value={quantity}
                   onChange={(event) => setQuantity(event.target.value)}

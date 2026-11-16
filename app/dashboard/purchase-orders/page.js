@@ -2258,8 +2258,8 @@ export default function PurchaseOrdersPage() {
 
                                 <input
                                     type="number"
-                                    min="0.000001"
-                                    step="0.000001"
+                                    min="1"
+                                    step="1"
                                     disabled={
                                         isReadOnly ||
                                         !canModifyCurrentForm ||
@@ -2484,8 +2484,8 @@ export default function PurchaseOrdersPage() {
                                                 <td className="px-2 py-2">
                                                     <input
                                                         type="number"
-                                                        min="0.0001"
-                                                        step="0.0001"
+                                                        min="1"
+                                                        step="1"
                                                         disabled={isReadOnly || !canModifyCurrentForm}
                                                         value={item.quantity}
                                                         onChange={(event) =>
@@ -2529,7 +2529,7 @@ export default function PurchaseOrdersPage() {
                                                     <input
                                                         type="number"
                                                         min="0"
-                                                        step="0.0001"
+                                                        step="1"
                                                         disabled={isReadOnly || !canModifyCurrentForm}
                                                         value={item.unitPrice}
                                                         onChange={(event) =>

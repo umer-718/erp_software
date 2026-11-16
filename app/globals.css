@@ -1907,3 +1907,147 @@ html[data-theme] .stock-report-page thead {
 html[data-theme] .stock-report-page tbody tr:hover {
   background-color: var(--erp-blue-light) !important;
 }
+
+
+/* =========================================================
+   SALES RETURNS — COMPLETE THEME COMPATIBILITY
+   Supports Light, Dark, Blue and Green themes
+========================================================= */
+
+/* Main page background */
+html[data-theme] .sales-returns-page {
+    min-height: 100vh;
+    background: var(--erp-page) !important;
+    color: var(--erp-text) !important;
+}
+
+/* Dark theme main workspace */
+html[data-theme="dark"] .sales-returns-page {
+    background: #0d1726 !important;
+    color: #eff6ff !important;
+}
+
+/* Main panels and cards */
+html[data-theme] .sales-returns-page .bg-white {
+    background-color: var(--erp-surface) !important;
+    color: var(--erp-text) !important;
+}
+
+/* Light backgrounds */
+html[data-theme] .sales-returns-page .bg-slate-50,
+html[data-theme] .sales-returns-page .bg-gray-50 {
+    background-color: var(--erp-blue-light) !important;
+}
+
+/* Dark theme backgrounds */
+html[data-theme="dark"] .sales-returns-page .bg-slate-50,
+html[data-theme="dark"] .sales-returns-page .bg-gray-50,
+html[data-theme="dark"] .sales-returns-page .bg-slate-100 {
+    background-color: #1b2b40 !important;
+}
+
+/* Text */
+html[data-theme] .sales-returns-page .text-slate-900,
+html[data-theme] .sales-returns-page .text-slate-800,
+html[data-theme] .sales-returns-page .text-slate-700 {
+    color: var(--erp-text) !important;
+}
+
+html[data-theme] .sales-returns-page .text-slate-600,
+html[data-theme] .sales-returns-page .text-slate-500 {
+    color: var(--erp-muted) !important;
+}
+
+/* Borders */
+html[data-theme] .sales-returns-page .border-slate-100,
+html[data-theme] .sales-returns-page .border-slate-200,
+html[data-theme] .sales-returns-page .border-gray-200 {
+    border-color: var(--erp-border) !important;
+}
+
+/* Inputs */
+html[data-theme] .sales-returns-page input:not([type="checkbox"]):not([type="radio"]),
+html[data-theme] .sales-returns-page select,
+html[data-theme] .sales-returns-page textarea {
+    background-color: var(--erp-input) !important;
+    color: var(--erp-text) !important;
+    border-color: var(--erp-border) !important;
+}
+
+html[data-theme] .sales-returns-page input::placeholder,
+html[data-theme] .sales-returns-page textarea::placeholder {
+    color: var(--erp-muted) !important;
+}
+
+/* Dropdown options */
+html[data-theme] .sales-returns-page select option {
+    background-color: var(--erp-surface);
+    color: var(--erp-text);
+}
+
+/* Tables */
+html[data-theme] .sales-returns-page table thead {
+    background-color: var(--erp-blue-light) !important;
+    color: var(--erp-text) !important;
+}
+
+html[data-theme] .sales-returns-page table tbody tr {
+    background-color: var(--erp-surface);
+    color: var(--erp-text);
+}
+
+html[data-theme] .sales-returns-page table tbody tr:hover {
+    background-color: var(--erp-blue-light) !important;
+}
+
+html[data-theme] .sales-returns-page table td {
+    border-color: var(--erp-border) !important;
+}
+
+/* Dark theme specific text and surfaces */
+html[data-theme="dark"] .sales-returns-page h1,
+html[data-theme="dark"] .sales-returns-page h2,
+html[data-theme="dark"] .sales-returns-page h3,
+html[data-theme="dark"] .sales-returns-page label {
+    color: #eff6ff;
+}
+
+html[data-theme="dark"] .sales-returns-page .bg-indigo-50,
+html[data-theme="dark"] .sales-returns-page .bg-blue-50 {
+    background-color: #1b354f !important;
+}
+
+html[data-theme="dark"] .sales-returns-page .bg-emerald-50 {
+    background-color: #173d32 !important;
+}
+
+html[data-theme="dark"] .sales-returns-page .bg-amber-50 {
+    background-color: #3a2d19 !important;
+}
+
+html[data-theme="dark"] .sales-returns-page .bg-rose-50 {
+    background-color: #402330 !important;
+}
+
+/* Hover states */
+html[data-theme="dark"] .sales-returns-page .hover\:bg-slate-50:hover,
+html[data-theme="dark"] .sales-returns-page .hover\:bg-white:hover {
+    background-color: #263b52 !important;
+}
+
+/* Preserve primary buttons */
+html[data-theme="dark"] .sales-returns-page .bg-indigo-600,
+html[data-theme="dark"] .sales-returns-page .bg-blue-600 {
+    color: #ffffff !important;
+}
+
+/* Modal surfaces */
+html[data-theme="dark"] .sales-returns-page .fixed.inset-0 .bg-white {
+    background-color: var(--erp-surface) !important;
+}
+
+/* Keep printable documents white */
+html[data-theme="dark"] .sales-returns-page .print-area,
+html[data-theme="dark"] .sales-returns-page .print-area * {
+    color-scheme: light;
+}

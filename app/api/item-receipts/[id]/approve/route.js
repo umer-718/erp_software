@@ -446,7 +446,7 @@ export async function POST(request, context) {
                 const remaining =
                     Number(poItem.quantity) - alreadyReceived;
 
-                if (quantity > remaining + 0.000001) {
+                if (quantity > remaining + 1) {
                     fail(
                         `${item.item_description}: only ${Math.max(0, remaining)} units remain on the Purchase Order.`
                     );
@@ -534,7 +534,7 @@ export async function POST(request, context) {
                     Number(pendingItem.quantity_expected) -
                     pendingAlreadyReceived;
 
-                if (quantity > pendingRemaining + 0.000001) {
+                if (quantity > pendingRemaining + 1) {
                     fail(
                         `${item.item_description}: only ${Math.max(0, pendingRemaining)} units remain on the Pending Item Receipt.`
                     );
@@ -628,7 +628,7 @@ export async function POST(request, context) {
                     const poRemaining =
                         Number(poItem.quantity) - poAlreadyReceived;
 
-                    if (quantity > poRemaining + 0.000001) {
+                    if (quantity > poRemaining + 1) {
                         fail(
                             `${item.item_description}: only ${Math.max(0, poRemaining)} units remain on the Purchase Order.`
                         );

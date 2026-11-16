@@ -100,7 +100,7 @@ function formatMoney(value, currency = "PKR") {
     }).format(Number.isFinite(amount) ? amount : 0);
   } catch {
     return `${currency || "PKR"} ${
-      Number.isFinite(amount) ? amount.toFixed(2) : "0.00"
+      Number.isFinite(amount) ? amount.toFixed(2) : "0"
     }`;
   }
 }
@@ -1563,8 +1563,8 @@ export default function PurchaseQuotationsPage() {
 
                   <input
                     type="number"
-                    min="0.000001"
-                    step="0.000001"
+                    min="1"
+                    step="1"
                     required
                     disabled={viewOnly}
                     value={form.exchangeRate}
@@ -1782,8 +1782,8 @@ export default function PurchaseQuotationsPage() {
 
                       <input
                         type="number"
-                        min="0.0001"
-                        step="0.0001"
+                        min="1"
+                        step="1"
                         disabled={viewOnly}
                         value={newQuantity}
                         onChange={(event) =>
@@ -1801,7 +1801,7 @@ export default function PurchaseQuotationsPage() {
                       <input
                         type="number"
                         min="0"
-                        step="0.0001"
+                        step="1"
                         disabled={viewOnly}
                         value={newPrice}
                         onChange={(event) =>
@@ -1908,8 +1908,8 @@ export default function PurchaseQuotationsPage() {
                           <td className="px-3 py-3">
                             <input
                               type="number"
-                              min="0.0001"
-                              step="0.0001"
+                              min="1"
+                              step="1"
                               disabled={viewOnly}
                               value={item.quantity}
                               onChange={(event) =>
@@ -1927,7 +1927,7 @@ export default function PurchaseQuotationsPage() {
                             <input
                               type="number"
                               min="0"
-                              step="0.0001"
+                              step="1"
                               disabled={viewOnly}
                               value={item.unitPrice}
                               onChange={(event) =>
@@ -1945,7 +1945,7 @@ export default function PurchaseQuotationsPage() {
                             <input
                               type="number"
                               min="0"
-                              step="0.01"
+                              step="1"
                               disabled={viewOnly}
                               value={item.discountAmount}
                               onChange={(event) =>
@@ -1964,7 +1964,7 @@ export default function PurchaseQuotationsPage() {
                               type="number"
                               min="0"
                               max="100"
-                              step="0.01"
+                              step="1"
                               disabled={viewOnly}
                               value={item.taxRate}
                               onChange={(event) =>

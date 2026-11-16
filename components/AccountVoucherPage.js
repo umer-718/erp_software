@@ -402,10 +402,10 @@ export default function AccountVoucherPage({ type }) {
                     name="amount"
                     value={form.amount}
                     onChange={updateField}
-                    min="0.01"
-                    step="0.01"
+                    min="1"
+                    step="1"
                     required
-                    placeholder="0.00"
+                    placeholder="0"
                     className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-14 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>

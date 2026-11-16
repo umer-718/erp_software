@@ -2293,8 +2293,8 @@ export default function SalesQuotationsPage() {
                         </span>
                         <input
                           type="number"
-                          min="0.0001"
-                          step="0.0001"
+                          min="1"
+                          step="1"
                           value={quick.quantity}
                           onChange={(event) =>
                             setQuickField("quantity", event.target.value)
@@ -2311,7 +2311,7 @@ export default function SalesQuotationsPage() {
                         <input
                           type="number"
                           min="0"
-                          step="0.0001"
+                          step="1"
                           value={quick.unitPrice}
                           onChange={(event) =>
                             setQuickField("unitPrice", event.target.value)
@@ -2329,7 +2329,7 @@ export default function SalesQuotationsPage() {
                           type="number"
                           min="0"
                           max="100"
-                          step="0.01"
+                          step="1"
                           value={quick.taxRate}
                           onChange={(event) =>
                             setQuickField("taxRate", event.target.value)
@@ -2531,7 +2531,7 @@ export default function SalesQuotationsPage() {
                                   <input
                                     type="number"
                                     min="0"
-                                    step="0.0001"
+                                    step="1"
                                     value={item.itemBalance}
                                     onChange={(event) =>
                                       updateItem(
@@ -2562,8 +2562,8 @@ export default function SalesQuotationsPage() {
                                 <td className="min-w-28 px-3 py-3">
                                   <input
                                     type="number"
-                                    min="0.0001"
-                                    step="0.0001"
+                                    min="1"
+                                    step="1"
                                     required
                                     value={item.quantity}
                                     onChange={(event) =>
@@ -2583,7 +2583,7 @@ export default function SalesQuotationsPage() {
                                   <input
                                     type="number"
                                     min="0"
-                                    step="0.0001"
+                                    step="1"
                                     required
                                     value={item.unitPrice}
                                     onChange={(event) =>
@@ -2627,7 +2627,7 @@ export default function SalesQuotationsPage() {
                                     type="number"
                                     min="0"
                                     max="100"
-                                    step="0.01"
+                                    step="1"
                                     value={item.taxRate}
                                     onChange={(event) =>
                                       updateItem(

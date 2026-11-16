@@ -1677,8 +1677,8 @@ export default function PurchasesPage() {
                                                 <td className="p-3">
                                                     <input
                                                         type="number"
-                                                        min="0.001"
-                                                        step="0.001"
+                                                        min="1"
+                                                        step="1"
                                                         value={item.quantity}
                                                         onChange={(e) =>
                                                             updateItem(index, "quantity", e.target.value)
@@ -1693,7 +1693,7 @@ export default function PurchasesPage() {
                                                     <input
                                                         type="number"
                                                         min="0"
-                                                        step="0.01"
+                                                        step="1"
                                                         value={item.unitCost}
                                                         onChange={(e) =>
                                                             updateItem(index, "unitCost", e.target.value)
@@ -1708,7 +1708,7 @@ export default function PurchasesPage() {
                                                     <input
                                                         type="number"
                                                         min="0"
-                                                        step="0.01"
+                                                        step="1"
                                                         value={item.discount}
                                                         onChange={(e) =>
                                                             updateItem(index, "discount", e.target.value)
@@ -1722,7 +1722,7 @@ export default function PurchasesPage() {
                                                     <input
                                                         type="number"
                                                         min="0"
-                                                        step="0.01"
+                                                        step="1"
                                                         value={item.tax}
                                                         onChange={(e) =>
                                                             updateItem(index, "tax", e.target.value)
@@ -1781,7 +1781,7 @@ export default function PurchasesPage() {
                                             id="purchaseDiscount"
                                             type="number"
                                             min="0"
-                                            step="0.01"
+                                            step="1"
                                             value={form.discount}
                                             onChange={(e) =>
                                                 updateForm("discount", e.target.value)
@@ -1803,7 +1803,7 @@ export default function PurchasesPage() {
                                             id="purchaseTax"
                                             type="number"
                                             min="0"
-                                            step="0.01"
+                                            step="1"
                                             value={form.tax}
                                             onChange={(e) =>
                                                 updateForm("tax", e.target.value)

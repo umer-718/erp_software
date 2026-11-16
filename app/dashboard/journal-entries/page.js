@@ -653,7 +653,7 @@ export default function JournalEntriesPage() {
   );
 
   const difference = Math.abs(totalDebit - totalCredit);
-  const balanced = difference < 0.01;
+  const balanced = difference < 1;
 
   const selectableAccounts = useMemo(
     () => accounts.filter(isAccountSelectable),
@@ -1581,7 +1581,7 @@ export default function JournalEntriesPage() {
                               <div className="relative">
                                 <input
                                   type="number"
-                                  step="0.01"
+                                  step="1"
                                   min="0"
                                   value={item.debit}
                                   onChange={(event) =>
@@ -1591,7 +1591,7 @@ export default function JournalEntriesPage() {
                                       event.target.value
                                     )
                                   }
-                                  placeholder="0.00"
+                                  placeholder="0"
                                   className={`${inputClass} min-w-[125px] text-right font-medium tabular-nums`}
                                 />
                               </div>
@@ -1600,7 +1600,7 @@ export default function JournalEntriesPage() {
                             <td className="px-3 py-3">
                               <input
                                 type="number"
-                                step="0.01"
+                                step="1"
                                 min="0"
                                 value={item.credit}
                                 onChange={(event) =>
@@ -1610,7 +1610,7 @@ export default function JournalEntriesPage() {
                                     event.target.value
                                   )
                                 }
-                                placeholder="0.00"
+                                placeholder="0"
                                 className={`${inputClass} min-w-[125px] text-right font-medium tabular-nums`}
                               />
                             </td>

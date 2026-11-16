@@ -170,7 +170,7 @@ function money(value, currency = "PKR") {
             maximumFractionDigits: 2,
         }).format(Number.isFinite(number) ? number : 0);
     } catch {
-        return `${currency} ${Number.isFinite(number) ? number.toFixed(2) : "0.00"}`;
+        return `${currency} ${Number.isFinite(number) ? number.toFixed(2) : "0"}`;
     }
 }
 
@@ -1936,8 +1936,8 @@ export default function SalesOrdersPage() {
                         <input
                             className={inputClass}
                             type="number"
-                            min="0.001"
-                            step="0.001"
+                            min="1"
+                            step="1"
                             disabled={isReadOnly}
                             value={item.quantity ?? 1}
                             onChange={(event) =>
@@ -1954,7 +1954,7 @@ export default function SalesOrdersPage() {
                             className={inputClass}
                             type="number"
                             min="0"
-                            step="0.01"
+                            step="1"
                             disabled={isReadOnly}
                             value={item.retail_price ?? 0}
                             onChange={(event) =>
@@ -1972,7 +1972,7 @@ export default function SalesOrdersPage() {
                             type="number"
                             min="0"
                             max="100"
-                            step="0.001"
+                            step="1"
                             disabled={isReadOnly}
                             value={item.discount_percent ?? 0}
                             onChange={(event) =>
@@ -2021,7 +2021,7 @@ export default function SalesOrdersPage() {
                             className={inputClass}
                             type="number"
                             min="0"
-                            step="0.001"
+                            step="1"
                             disabled={isReadOnly}
                             value={item.tax_rate ?? 0}
                             onChange={(event) =>
@@ -3048,8 +3048,8 @@ export default function SalesOrdersPage() {
                                     <input
                                         className={inputClass}
                                         type="number"
-                                        min="0.000001"
-                                        step="0.000001"
+                                        min="1"
+                                        step="1"
                                         disabled={isReadOnly}
                                         value={form.exchange_rate ?? 1}
                                         onChange={(event) =>
@@ -3207,8 +3207,8 @@ export default function SalesOrdersPage() {
                                                     <input
                                                         className={inputClass}
                                                         type="number"
-                                                        min="0.001"
-                                                        step="0.001"
+                                                        min="1"
+                                                        step="1"
                                                         value={quick.quantity}
                                                         onChange={(event) =>
                                                             setQuickField(
@@ -3228,7 +3228,7 @@ export default function SalesOrdersPage() {
                                                         className={inputClass}
                                                         type="number"
                                                         min="0"
-                                                        step="0.01"
+                                                        step="1"
                                                         value={quick.retail_price}
                                                         onChange={(event) =>
                                                             setQuickField(
@@ -3249,7 +3249,7 @@ export default function SalesOrdersPage() {
                                                         type="number"
                                                         min="0"
                                                         max="100"
-                                                        step="0.001"
+                                                        step="1"
                                                         value={
                                                             quick.discount_percent
                                                         }
@@ -3271,7 +3271,7 @@ export default function SalesOrdersPage() {
                                                         className={inputClass}
                                                         type="number"
                                                         min="0"
-                                                        step="0.001"
+                                                        step="1"
                                                         value={quick.tax_rate}
                                                         onChange={(event) =>
                                                             setQuickField(

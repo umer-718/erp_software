@@ -1486,8 +1486,8 @@ export default function PurchasesPage() {
                                                     <td className={tableCellClass}>
                                                         <input
                                                             type="number"
-                                                            min="0.001"
-                                                            step="0.001"
+                                                            min="1"
+                                                            step="1"
                                                             value={item.quantity}
                                                             onChange={(event) =>
                                                                 updateItem(
@@ -1505,7 +1505,7 @@ export default function PurchasesPage() {
                                                         <input
                                                             type="number"
                                                             min="0"
-                                                            step="0.01"
+                                                            step="1"
                                                             value={item.unitCost}
                                                             onChange={(event) =>
                                                                 updateItem(
@@ -1523,7 +1523,7 @@ export default function PurchasesPage() {
                                                         <input
                                                             type="number"
                                                             min="0"
-                                                            step="0.01"
+                                                            step="1"
                                                             value={item.discount}
                                                             onChange={(event) =>
                                                                 updateItem(
@@ -1540,7 +1540,7 @@ export default function PurchasesPage() {
                                                         <input
                                                             type="number"
                                                             min="0"
-                                                            step="0.01"
+                                                            step="1"
                                                             value={item.tax}
                                                             onChange={(event) =>
                                                                 updateItem(
@@ -1648,7 +1648,7 @@ export default function PurchasesPage() {
                                                 id="purchase-discount"
                                                 type="number"
                                                 min="0"
-                                                step="0.01"
+                                                step="1"
                                                 value={form.discount}
                                                 onChange={(event) =>
                                                     updateForm("discount", event.target.value)
@@ -1669,7 +1669,7 @@ export default function PurchasesPage() {
                                                 id="purchase-tax"
                                                 type="number"
                                                 min="0"
-                                                step="0.01"
+                                                step="1"
                                                 value={form.tax}
                                                 onChange={(event) =>
                                                     updateForm("tax", event.target.value)

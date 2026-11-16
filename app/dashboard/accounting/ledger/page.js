@@ -866,7 +866,7 @@ export default function FinancialLedgerPage() {
           title="Debit − Credit"
           value={difference}
           subtitle={
-            Math.abs(difference) < 0.01
+            Math.abs(difference) < 1
               ? "Totals are balanced"
               : "Net difference in this view"
           }

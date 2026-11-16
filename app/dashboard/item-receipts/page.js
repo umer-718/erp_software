@@ -1614,8 +1614,8 @@ export default function ItemReceiptsPage() {
                                         >
                                             <input
                                                 type="number"
-                                                min="0.001"
-                                                step="0.001"
+                                                min="1"
+                                                step="1"
                                                 className={INPUT_CLASS}
                                                 value={item.quantityReceived}
                                                 onChange={(event) =>
@@ -1654,7 +1654,7 @@ export default function ItemReceiptsPage() {
                                             <input
                                                 type="number"
                                                 min="0"
-                                                step="0.01"
+                                                step="1"
                                                 className={INPUT_CLASS}
                                                 value={item.unitCost}
                                                 onChange={(event) =>

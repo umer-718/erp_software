@@ -1559,7 +1559,7 @@ export default function PurchaseInvoicesPage() {
                                                     <td className="px-3 py-3">
                                                         <input
                                                             type="number"
-                                                            min="0.000001"
+                                                            min="1"
                                                             step="any"
                                                             required
                                                             value={item.quantity}

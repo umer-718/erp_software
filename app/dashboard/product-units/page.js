@@ -774,8 +774,8 @@ export default function ProductUnitsPage() {
                         </label>
                         <input
                             type="number"
-                            min="0.001"
-                            step="0.001"
+                            min="1"
+                            step="1"
                             className={inputClass}
                             value={unitForm.conversionFactor}
                             onChange={(event) =>
@@ -855,8 +855,8 @@ export default function ProductUnitsPage() {
                         <label className={labelClass}>Quantity</label>
                         <input
                             type="number"
-                            min="0.001"
-                            step="0.001"
+                            min="1"
+                            step="1"
                             className={inputClass}
                             value={adjustment.quantity}
                             onChange={(event) =>
@@ -942,8 +942,8 @@ export default function ProductUnitsPage() {
                     <label className={labelClass}>Source quantity</label>
                     <input
                         type="number"
-                        min="0.001"
-                        step="0.001"
+                        min="1"
+                        step="1"
                         className={inputClass}
                         value={conversion.quantity}
                         onChange={(event) =>

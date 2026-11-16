@@ -708,10 +708,10 @@ export default function SalesInvoicesPage() {
     const itemDiscount = Number(quick.discount) || 0;
     const itemTax = Number(quick.tax) || 0;
 
-    if (!Number.isFinite(quantity) || quantity <= 0) {
-      setQuickError("Quantity must be greater than zero.");
-      return;
-    }
+    if (!Number.isSafeInteger(quantity) || quantity <= 0) {
+  setQuickError("Quantity must be a positive whole number. Decimals are not allowed.");
+  return;
+}
 
     if (!Number.isFinite(unitPrice) || unitPrice < 0) {
       setQuickError("Unit price cannot be negative.");
@@ -1018,13 +1018,12 @@ setQuickError("");
         return;
       }
 
-      if (
-        !Number.isFinite(Number(item.quantity)) ||
-        Number(item.quantity) <= 0
-      ) {
-        setError("Quantity must be greater than zero.");
-        return;
-      }
+      if (!Number.isSafeInteger(Number(item.quantity)) || Number(item.quantity) <= 0) {
+  setError(
+    "Every item quantity must be a positive whole number. Decimal quantities are not allowed."
+  );
+  return;
+}
     }
 
     setSaving(true);
@@ -1742,7 +1741,7 @@ setQuickError("");
                 <input
                   type="number"
                   min="0"
-                  step="0.01"
+                  step="1"
                   value={discount}
                   onChange={(event) => setDiscount(event.target.value)}
                   className={inputClass}
@@ -1754,7 +1753,7 @@ setQuickError("");
                 <input
                   type="number"
                   min="0"
-                  step="0.01"
+                  step="1"
                   value={tax}
                   onChange={(event) => setTax(event.target.value)}
                   className={inputClass}
@@ -1811,14 +1810,15 @@ setQuickError("");
                 <div>
                   <label className={labelClass}>Quantity</label>
                   <input
-                    type="number"
-                    min="0.001"
-                    step="0.001"
-                    value={quick.quantity}
-                    onChange={(event) => setQuickField("quantity", event.target.value)}
-                    onKeyDown={handleQuickKeyDown}
-                    className={inputClass}
-                  />
+  type="number"
+  min="1"
+  step="1"
+  value={quick.quantity}
+  onChange={(event) => setQuickField("quantity", event.target.value)}
+  onKeyDown={handleQuickKeyDown}
+  className={`${inputClass} min-w-[100px]`}
+  required
+/>
                 </div>
 
                 <div>
@@ -1826,7 +1826,7 @@ setQuickError("");
                   <input
                     type="number"
                     min="0"
-                    step="0.01"
+                    step="1"
                     value={quick.unitPrice}
                     onChange={(event) => setQuickField("unitPrice", event.target.value)}
                     onKeyDown={handleQuickKeyDown}
@@ -1839,7 +1839,7 @@ setQuickError("");
                   <input
                     type="number"
                     min="0"
-                    step="0.01"
+                    step="1"
                     value={quick.discount}
                     onChange={(event) => setQuickField("discount", event.target.value)}
                     onKeyDown={handleQuickKeyDown}
@@ -1852,7 +1852,7 @@ setQuickError("");
                   <input
                     type="number"
                     min="0"
-                    step="0.01"
+                    step="1"
                     value={quick.tax}
                     onChange={(event) => setQuickField("tax", event.target.value)}
                     onKeyDown={handleQuickKeyDown}
@@ -1979,8 +1979,8 @@ setQuickError("");
                         <td className="px-3 py-3">
                           <input
                             type="number"
-                            min="0.001"
-                            step="0.001"
+                            min="0"
+                            step="1"
                             value={item.quantity}
                             onChange={(event) =>
                               updateItem(index, "quantity", event.target.value)
@@ -1996,7 +1996,7 @@ setQuickError("");
                           <input
                             type="number"
                             min="0"
-                            step="0.01"
+                            step="1"
                             value={item.unitPrice}
                             onChange={(event) =>
                               updateItem(index, "unitPrice", event.target.value)
@@ -2011,7 +2011,7 @@ setQuickError("");
                           <input
                             type="number"
                             min="0"
-                            step="0.01"
+                            step="1"
                             value={item.discount}
                             onChange={(event) =>
                               updateItem(index, "discount", event.target.value)
@@ -2026,7 +2026,7 @@ setQuickError("");
                           <input
                             type="number"
                             min="0"
-                            step="0.01"
+                            step="1"
                             value={item.tax}
                             onChange={(event) =>
                               updateItem(index, "tax", event.target.value)
@@ -2507,7 +2507,7 @@ setQuickError("");
                   <div
                     className={`rounded-2xl border bg-white p-5 shadow-sm dark:bg-slate-900 ${Math.abs(
                       accountingTotalDebit - accountingTotalCredit
-                    ) < 0.01
+                    ) < 1
                       ? "border-emerald-200 dark:border-emerald-800"
                       : "border-red-200 dark:border-red-800"
                       }`}
@@ -2523,14 +2523,14 @@ setQuickError("");
                     <p
                       className={`mt-1 text-xs font-bold ${Math.abs(
                         accountingTotalDebit - accountingTotalCredit
-                      ) < 0.01
+                      ) < 1
                         ? "text-emerald-700 dark:text-emerald-300"
                         : "text-red-700 dark:text-red-300"
                         }`}
                     >
                       {Math.abs(
                         accountingTotalDebit - accountingTotalCredit
-                      ) < 0.01
+                      ) < 1
                         ? "✓ Totals match"
                         : "! Totals do not match"}
                     </p>
@@ -2539,7 +2539,7 @@ setQuickError("");
 
                 {accountingJournals.map((journal) => {
                   const balanced =
-                    Math.abs(journal.debit - journal.credit) < 0.01;
+                    Math.abs(journal.debit - journal.credit) < 1;
 
                   return (
                     <div

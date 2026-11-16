@@ -255,7 +255,7 @@ export async function POST(request) {
     if (
       Math.abs(
         totalDebit - totalCredit
-      ) > 0.01
+      ) > 1
     ) {
       throw new Error(
         `Journal is not balanced. Debit: ${totalDebit.toFixed(
@@ -548,7 +548,7 @@ export async function PUT(request) {
     if (
       Math.abs(
         totalDebit - totalCredit
-      ) > 0.01
+      ) > 1
     ) {
       throw new Error(
         `Journal is not balanced. Debit: ${totalDebit.toFixed(

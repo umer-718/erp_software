@@ -677,7 +677,7 @@ export async function PATCH(request, context) {
                 const remaining =
                     Number(poItem.quantity) - alreadyReceived;
 
-                if (item.quantity > remaining + 0.000001) {
+                if (item.quantity > remaining + 1) {
                     throw new Error(
                         `${item.description}: only ${Math.max(0, remaining)} units remain on the Purchase Order.`
                     );
@@ -753,7 +753,7 @@ export async function PATCH(request, context) {
                     Number(pendingItem.quantity_expected) -
                     pendingAlreadyReceived;
 
-                if (item.quantity > pendingRemaining + 0.000001) {
+                if (item.quantity > pendingRemaining + 1) {
                     throw new Error(
                         `${item.description}: only ${Math.max(0, pendingRemaining)} units remain on the Pending Item Receipt.`
                     );
@@ -814,7 +814,7 @@ export async function PATCH(request, context) {
                         Number(poItemResult.rows[0].quantity) -
                         poAlreadyReceived;
 
-                    if (item.quantity > poRemaining + 0.000001) {
+                    if (item.quantity > poRemaining + 1) {
                         throw new Error(
                             `${item.description}: only ${Math.max(0, poRemaining)} units remain on the Purchase Order.`
                         );

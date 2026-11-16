@@ -396,11 +396,11 @@ function AccountFormFields({
                 id={`${mode}-opening-balance`}
                 type="number"
                 min="0"
-                step="0.01"
+                step="1"
                 name="openingBalance"
                 value={form.openingBalance}
                 onChange={onChange}
-                placeholder="0.00"
+                placeholder="0"
                 className={`${inputClass} pl-14`}
               />
             </div>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { parseIntegerQuantity } from "@/lib/quantity";
 
 import {
   required,
@@ -164,8 +165,8 @@ export async function POST(request) {
 
     const normalizedReferenceNumber =
       referenceNumber === null ||
-      referenceNumber === undefined ||
-      String(referenceNumber).trim() === ""
+        referenceNumber === undefined ||
+        String(referenceNumber).trim() === ""
         ? null
         : String(referenceNumber).trim();
 
@@ -292,9 +293,9 @@ export async function POST(request) {
 
       if (
         Number(deliveryChallan.customer_id) !==
-          validCustomerId ||
+        validCustomerId ||
         Number(deliveryChallan.warehouse_id) !==
-          validWarehouseId
+        validWarehouseId
       ) {
         throw new Error(
           "The Delivery Challan customer and warehouse must match the invoice."
@@ -395,9 +396,9 @@ export async function POST(request) {
         "Product"
       );
 
-      const quantity = positiveNumber(
+      const quantity = parseIntegerQuantity(
         item.quantity,
-        "Quantity"
+        "Item quantity"
       );
 
       const unitPrice = nonNegativeNumber(
@@ -419,13 +420,13 @@ export async function POST(request) {
 
       const subProductId =
         rawSubProductId === null ||
-        rawSubProductId === undefined ||
-        rawSubProductId === ""
+          rawSubProductId === undefined ||
+          rawSubProductId === ""
           ? null
           : integerId(
-              rawSubProductId,
-              "Sub-product"
-            );
+            rawSubProductId,
+            "Sub-product"
+          );
 
       const productResult = await client.query(
         `
@@ -499,11 +500,11 @@ export async function POST(request) {
         );
 
         if (
-          !Number.isFinite(unitsPerParent) ||
+          !Number.isSafeInteger(unitsPerParent) ||
           unitsPerParent <= 0
         ) {
           throw new Error(
-            `Configure a valid units-per-parent conversion for "${subProduct.sub_product_name}" before selling it.`
+            `The units-per-parent conversion for "${subProduct.sub_product_name}" must be a positive whole number.`
           );
         }
       }
@@ -513,6 +514,12 @@ export async function POST(request) {
         subProduct !== null
           ? quantity / unitsPerParent
           : quantity;
+
+      if (!Number.isSafeInteger(stockQuantity) || stockQuantity <= 0) {
+        throw new Error(
+          `The quantity conversion for "${subProduct?.sub_product_name || product.product_name}" must produce a positive whole-number stock quantity. Please check the entered quantity and unit conversion.`
+        );
+      }
 
       // Use the same line-total convention as the submitted invoice.
       const lineTotal =
@@ -621,7 +628,7 @@ export async function POST(request) {
       stockRequirements.set(
         item.productId,
         (stockRequirements.get(item.productId) || 0) +
-          item.stockQuantity
+        item.stockQuantity
       );
     }
 
@@ -1305,7 +1312,7 @@ export async function POST(request) {
       );
 
       const newInvoiceStatus =
-        newBalanceAmount <= 0.000001
+        newBalanceAmount <= 1
           ? "PAID"
           : "PARTIAL";
 

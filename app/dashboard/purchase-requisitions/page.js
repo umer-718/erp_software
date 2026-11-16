@@ -1791,7 +1791,7 @@ export default function PurchaseRequisitionsPage() {
                                                                 <input
                                                                     type="number"
                                                                     min="0"
-                                                                    step="0.001"
+                                                                    step="1"
                                                                     value={item.itemBalance}
                                                                     onChange={(e) =>
                                                                         updateItem(
@@ -1839,8 +1839,8 @@ export default function PurchaseRequisitionsPage() {
                                                                 <input
                                                                     required
                                                                     type="number"
-                                                                    min="0.001"
-                                                                    step="0.001"
+                                                                    min="1"
+                                                                    step="1"
                                                                     value={item.quantity}
                                                                     onChange={(e) =>
                                                                         updateItem(

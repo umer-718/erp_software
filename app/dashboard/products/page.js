@@ -3160,7 +3160,7 @@ export default function ProductsPage() {
                         <Input
                           type="number"
                           min="0"
-                          step="0.001"
+                          step="1"
                           value={form.minimumStock}
                           onChange={(event) =>
                             setField(
@@ -3427,8 +3427,8 @@ export default function ProductsPage() {
                           >
                             <Input
                               type="number"
-                              min="0.001"
-                              step="0.001"
+                              min="0"
+                              step="1"
                               value={
                                 variantForm.units_per_parent
                               }
@@ -3485,7 +3485,7 @@ export default function ProductsPage() {
                             <Input
                               type="number"
                               min="0"
-                              step="0.01"
+                              step="1"
                               value={variantForm.cost_price}
                               onChange={(event) =>
                                 setVariantField(
@@ -3500,7 +3500,7 @@ export default function ProductsPage() {
                             <Input
                               type="number"
                               min="0"
-                              step="0.01"
+                              step="1"
                               value={variantForm.sale_price}
                               onChange={(event) =>
                                 setVariantField(
@@ -3834,7 +3834,7 @@ export default function ProductsPage() {
                           <Input
                             type="number"
                             min="0"
-                            step="0.01"
+                            step="1"
                             value={form.salePrice}
                             onChange={(event) =>
                               setField(
@@ -3953,7 +3953,7 @@ export default function ProductsPage() {
                           <Input
                             type="number"
                             min="0"
-                            step="0.01"
+                            step="1"
                             value={form.costPrice}
                             onChange={(event) =>
                               setField(

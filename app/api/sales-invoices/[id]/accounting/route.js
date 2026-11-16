@@ -74,7 +74,7 @@ export async function GET(request, { params }) {
       lines,
       totalDebit,
       totalCredit,
-      balanced: Math.abs(totalDebit - totalCredit) < 0.01,
+      balanced: Math.abs(totalDebit - totalCredit) < 1,
     });
   } catch (error) {
     console.error("SALES INVOICE ACCOUNTING ERROR:", error);

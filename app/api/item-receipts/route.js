@@ -842,7 +842,7 @@ export async function POST(request) {
 
                 if (
                     item.quantity >
-                    remainingQuantity + 0.000001
+                    remainingQuantity + 1
                 ) {
                     throw new Error(
                         `${item.description}: only ${Math.max(0, remainingQuantity)} units remain to be received.`
@@ -936,7 +936,7 @@ export async function POST(request) {
 
                 if (
                     item.quantity >
-                    remainingQuantity + 0.000001
+                    remainingQuantity + 1
                 ) {
                     throw new Error(
                         `${item.description}: only ${Math.max(0, remainingQuantity)} units remain on the Pending Item Receipt.`
@@ -1002,7 +1002,7 @@ export async function POST(request) {
 
                     if (
                         item.quantity >
-                        poRemaining + 0.000001
+                        poRemaining + 1
                     ) {
                         throw new Error(
                             `${item.description}: the Purchase Order has only ${Math.max(0, poRemaining)} units remaining.`

@@ -26,8 +26,8 @@ function LoginForm() {
 
   const forgotPasswordHref = initialCompanyId
     ? `/forgot-password?companyId=${encodeURIComponent(
-        initialCompanyId
-      )}&companyName=${encodeURIComponent(initialCompanyName)}`
+      initialCompanyId
+    )}&companyName=${encodeURIComponent(initialCompanyName)}`
     : "/forgot-password";
 
   async function handleLogin(event) {
@@ -72,6 +72,7 @@ function LoginForm() {
         data.code === "COMPANY_SELECTION_REQUIRED" &&
         Array.isArray(data.companies)
       ) {
+
         const uniqueCompanies = [
           ...new Map(
             data.companies
@@ -92,6 +93,7 @@ function LoginForm() {
           ).values(),
         ];
 
+
         setCompanies(uniqueCompanies);
         setSelectedCompanyId("");
         setError("Please select the company you want to access.");
@@ -106,13 +108,24 @@ function LoginForm() {
         return;
       }
 
-      if (!data.user?.companyId) {
-        setError("Login succeeded, but company information is missing.");
-        return;
-      }
+      const returnedCompanyId =
+  data.user?.companyId ?? data.user?.company_id;
 
-      const companyId = String(data.user.companyId);
-      const companyName = data.user.companyName || "Company";
+const companyId = String(returnedCompanyId ?? "");
+const companyName =
+  data.user?.companyName ??
+  data.user?.company_name ??
+  "";
+
+if (!companyId || !/^[1-9]\d*$/.test(companyId) || !companyName.trim()) {
+  console.error("Invalid login response:", data);
+
+  setError(
+    "Login response is missing valid company information. Please contact the administrator."
+  );
+
+  return;
+}
 
       // Preserve company context for the logout redirect.
       if (initialCompanyId || selectedCompanyId) {
