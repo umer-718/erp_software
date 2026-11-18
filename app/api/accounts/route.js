@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getOperationalPool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 
@@ -62,6 +62,14 @@ function successResponse(data, status = 200) {
 
 function handleDatabaseError(error, operation) {
   console.error(`${operation} ERROR:`, error);
+
+  if (error.message === "Invalid company ID.") {
+    return errorResponse("Invalid company ID.", 400);
+  }
+
+  if (error.message?.startsWith("Company database is not ready.")) {
+    return errorResponse(error.message, 503);
+  }
 
   if (error.code === "23505") {
     return errorResponse("Account code already exists.", 409);
@@ -179,6 +187,14 @@ async function authorizeAccountPermission(action) {
       ),
     };
   }
+}
+
+// =====================================================
+// COMPANY DATABASE HELPER
+// =====================================================
+
+function getAuthenticatedCompanyId(user) {
+  return user.companyId ?? user.company_id;
 }
 
 // =====================================================
@@ -395,20 +411,29 @@ export async function GET() {
   );
 
   try {
-    // Fetch the accounts and the remaining permissions.
-    // ADMIN is not granted implicit access here.
-    const [accountsResult, createAllowed, updateAllowed, deleteAllowed] =
-      await Promise.all([
-        pool.query(`
-          SELECT
-            ${ACCOUNT_SELECT}
-          FROM chart_of_accounts
-          ORDER BY account_code ASC
-        `),
-        hasPermission(roleId, PERMISSION_KEY, "create"),
-        hasPermission(roleId, PERMISSION_KEY, "update"),
-        hasPermission(roleId, PERMISSION_KEY, "delete"),
-      ]);
+    // Select the authenticated company's operational database.
+    const db = await getOperationalPool(
+      getAuthenticatedCompanyId(authorization.user)
+    );
+
+    // Fetch accounts from the operational database.
+    // Permissions remain in the central database.
+    const [
+      accountsResult,
+      createAllowed,
+      updateAllowed,
+      deleteAllowed,
+    ] = await Promise.all([
+      db.query(`
+        SELECT
+          ${ACCOUNT_SELECT}
+        FROM chart_of_accounts
+        ORDER BY account_code ASC
+      `),
+      hasPermission(roleId, PERMISSION_KEY, "create"),
+      hasPermission(roleId, PERMISSION_KEY, "update"),
+      hasPermission(roleId, PERMISSION_KEY, "delete"),
+    ]);
 
     return successResponse({
       success: true,
@@ -472,7 +497,12 @@ export async function POST(request) {
   let client;
 
   try {
-    client = await pool.connect();
+    // Select the authenticated company's operational database.
+    const db = await getOperationalPool(
+      getAuthenticatedCompanyId(authorization.user)
+    );
+
+    client = await db.connect();
 
     await client.query("BEGIN");
 
@@ -596,7 +626,11 @@ export async function PUT(request) {
     );
   }
 
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
+  if (
+    !body ||
+    typeof body !== "object" ||
+    Array.isArray(body)
+  ) {
     return errorResponse(
       "Invalid account data.",
       400
@@ -635,7 +669,12 @@ export async function PUT(request) {
   let client;
 
   try {
-    client = await pool.connect();
+    // Select the authenticated company's operational database.
+    const db = await getOperationalPool(
+      getAuthenticatedCompanyId(authorization.user)
+    );
+
+    client = await db.connect();
 
     await client.query("BEGIN");
 

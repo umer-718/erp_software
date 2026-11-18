@@ -1,21 +1,31 @@
+
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import pool from "@/lib/db";
+import pool, { provisionCompanyDatabase } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
+
 import {
     mkdir,
     writeFile,
     unlink,
 } from "node:fs/promises";
+
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// --------------------------------------------------
+// COMMON HELPERS
+// --------------------------------------------------
+
 function jsonError(message, status = 400, error = null) {
-    const response = { success: false, message };
+    const response = {
+        success: false,
+        message,
+    };
 
     if (process.env.NODE_ENV === "development" && error) {
         response.error = error.message || String(error);
@@ -30,7 +40,10 @@ function jsonError(message, status = 400, error = null) {
 
 function getFormString(formData, key, fallback = "") {
     const value = formData.get(key);
-    return typeof value === "string" ? value.trim() : fallback;
+
+    return typeof value === "string"
+        ? value.trim()
+        : fallback;
 }
 
 function validEmail(value) {
@@ -39,11 +52,22 @@ function validEmail(value) {
 
 function parsePositiveId(value) {
     const id = Number(value);
-    return Number.isSafeInteger(id) && id > 0 ? id : null;
+
+    return Number.isSafeInteger(id) && id > 0
+        ? id
+        : null;
 }
 
+// --------------------------------------------------
+// COMPANY LOGO UPLOAD
+// --------------------------------------------------
+
 async function saveCompanyLogo(file) {
-    if (!file || typeof file.arrayBuffer !== "function" || file.size === 0) {
+    if (
+        !file ||
+        typeof file.arrayBuffer !== "function" ||
+        file.size === 0
+    ) {
         return null;
     }
 
@@ -54,13 +78,19 @@ async function saveCompanyLogo(file) {
     };
 
     if (!allowedTypes[file.type]) {
-        const error = new Error("Choose a PNG, JPG, or WebP company logo.");
+        const error = new Error(
+            "Choose a PNG, JPG, or WebP company logo."
+        );
+
         error.status = 400;
         throw error;
     }
 
     if (file.size > 2 * 1024 * 1024) {
-        const error = new Error("Company logo must be 2 MB or smaller.");
+        const error = new Error(
+            "Company logo must be 2 MB or smaller."
+        );
+
         error.status = 400;
         throw error;
     }
@@ -72,10 +102,16 @@ async function saveCompanyLogo(file) {
         "companies"
     );
 
-    await mkdir(uploadDirectory, { recursive: true });
+    await mkdir(uploadDirectory, {
+        recursive: true,
+    });
 
     const fileName = `${randomUUID()}${allowedTypes[file.type]}`;
-    const filePath = path.join(uploadDirectory, fileName);
+
+    const filePath = path.join(
+        uploadDirectory,
+        fileName
+    );
 
     try {
         await writeFile(
@@ -94,13 +130,16 @@ async function saveCompanyLogo(file) {
     }
 }
 
+// --------------------------------------------------
+// CREATOR PERMISSION CHECK
+// --------------------------------------------------
+
 /**
- * Registration is permitted only when at least one active company
- * membership has BOTH companies:view and companies:create.
+ * Registration is permitted only when at least one active
+ * company membership has BOTH register_company:view
+ * and register_company:create permissions.
  *
  * ADMIN status does not bypass the permission matrix.
- * Elevated role assignment is available only when the qualifying
- * membership itself has the ADMIN role.
  */
 
 async function getCreatorAccess(userId) {
@@ -178,11 +217,16 @@ async function getCreatorAccess(userId) {
     };
 }
 
+// --------------------------------------------------
+// GLOBAL SYSTEM ROLES
+// --------------------------------------------------
 
 async function getGlobalSystemRoles() {
     const result = await pool.query(
         `
-        SELECT role_id, role_name
+        SELECT
+            role_id,
+            role_name
         FROM roles
         WHERE is_system_role = TRUE
           AND company_id IS NULL
@@ -200,12 +244,128 @@ async function getGlobalSystemRoles() {
     return result.rows;
 }
 
+// --------------------------------------------------
+// MEMBERSHIP HELPER
+// --------------------------------------------------
+
+/**
+ * Create or update a company membership.
+ *
+ * company_password_hash is copied from the existing
+ * central users.password_hash.
+ *
+ * This is required by the current company login route.
+ */
+
+async function createCompanyMembership({
+    client,
+    userId,
+    companyId,
+    roleId,
+}) {
+    const result = await client.query(
+        `
+        INSERT INTO user_companies (
+            user_id,
+            company_id,
+            role_id,
+            company_password_hash
+        )
+        SELECT
+            user_id,
+            $2,
+            $3,
+            password_hash
+        FROM users
+        WHERE user_id = $1
+          AND password_hash IS NOT NULL
+        ON CONFLICT (user_id, company_id)
+        DO UPDATE SET
+            role_id = EXCLUDED.role_id,
+            company_password_hash = EXCLUDED.company_password_hash
+        RETURNING
+            user_id,
+            company_id,
+            role_id;
+        `,
+        [
+            userId,
+            companyId,
+            roleId,
+        ]
+    );
+
+    if (!result.rows.length) {
+        throw new Error(
+            `Could not create company membership for user ${userId}. The user's password hash may be missing.`
+        );
+    }
+
+    return result.rows[0];
+}
+
+/**
+ * Create or update a membership for a newly created administrator.
+ *
+ * The already-generated password hash is supplied directly.
+ */
+
+async function createNewAdminMembership({
+    client,
+    userId,
+    companyId,
+    roleId,
+    passwordHash,
+}) {
+    const result = await client.query(
+        `
+        INSERT INTO user_companies (
+            user_id,
+            company_id,
+            role_id,
+            company_password_hash
+        )
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (user_id, company_id)
+        DO UPDATE SET
+            role_id = EXCLUDED.role_id,
+            company_password_hash = EXCLUDED.company_password_hash
+        RETURNING
+            user_id,
+            company_id,
+            role_id;
+        `,
+        [
+            userId,
+            companyId,
+            roleId,
+            passwordHash,
+        ]
+    );
+
+    if (!result.rows.length) {
+        throw new Error(
+            "Could not create the new administrator's company membership."
+        );
+    }
+
+    return result.rows[0];
+}
+
+// --------------------------------------------------
+// SUPER ADMIN NOTIFICATION
+// --------------------------------------------------
+
 async function notifySuperAdminCompanyRegistration({
     company,
     requesterUserId,
 }) {
     const baseUrl = process.env.SUPER_ADMIN_API_URL?.trim();
-    const clientId = parsePositiveId(process.env.LICENSE_CLIENT_ID);
+
+    const clientId = parsePositiveId(
+        process.env.LICENSE_CLIENT_ID
+    );
+
     const secret = process.env.CLIENT_DATA_API_SECRET;
 
     if (!baseUrl || !clientId || !secret) {
@@ -256,7 +416,9 @@ async function notifySuperAdminCompanyRegistration({
     try {
         const requesterResult = await pool.query(
             `
-            SELECT full_name, email
+            SELECT
+                full_name,
+                email
             FROM users
             WHERE user_id = $1
             LIMIT 1;
@@ -268,10 +430,12 @@ async function notifySuperAdminCompanyRegistration({
 
         const response = await fetch(endpoint, {
             method: "POST",
+
             headers: {
                 "Content-Type": "application/json",
                 "x-client-data-secret": secret,
             },
+
             body: JSON.stringify({
                 clientId,
                 companyId: company.company_id,
@@ -280,6 +444,7 @@ async function notifySuperAdminCompanyRegistration({
                 requesterName: requester.full_name || "",
                 requesterEmail: requester.email || "",
             }),
+
             signal: AbortSignal.timeout(5000),
             cache: "no-store",
         });
@@ -303,7 +468,8 @@ async function notifySuperAdminCompanyRegistration({
         return {
             sent: true,
             duplicate: Boolean(result.duplicate),
-            message: result.message || "Registration notification sent.",
+            message:
+                result.message || "Registration notification sent.",
         };
     } catch (error) {
         console.error("Super Admin notification error:", {
@@ -317,6 +483,10 @@ async function notifySuperAdminCompanyRegistration({
         };
     }
 }
+
+// --------------------------------------------------
+// GET: REGISTRATION OPTIONS
+// --------------------------------------------------
 
 export async function GET() {
     try {
@@ -338,7 +508,10 @@ export async function GET() {
         const userId = parsePositiveId(currentUser.userId);
 
         if (!userId) {
-            return jsonError("Invalid logged-in user.", 401);
+            return jsonError(
+                "Invalid logged-in user.",
+                401
+            );
         }
 
         const access = await getCreatorAccess(userId);
@@ -379,7 +552,9 @@ export async function GET() {
                     ON uc.user_id = u.user_id
                 WHERE uc.company_id = ANY($1::int[])
                   AND u.is_active = TRUE
-                ORDER BY u.full_name, u.username;
+                ORDER BY
+                    u.full_name,
+                    u.username;
                 `,
                 [companyIds]
             )
@@ -392,8 +567,7 @@ export async function GET() {
             ? allRoles
             : allRoles.filter(
                 (role) =>
-                    String(role.role_name || "").toUpperCase() ===
-                    "USER"
+                    String(role.role_name || "").toUpperCase() === "USER"
             );
 
         return NextResponse.json({
@@ -416,8 +590,16 @@ export async function GET() {
     }
 }
 
+// --------------------------------------------------
+// POST: REGISTER COMPANY
+// --------------------------------------------------
+
 export async function POST(request) {
     let currentUser;
+
+    // --------------------------------------------------
+    // AUTHENTICATION
+    // --------------------------------------------------
 
     try {
         currentUser = await getCurrentUser();
@@ -432,16 +614,25 @@ export async function POST(request) {
     }
 
     if (!currentUser?.userId) {
-        return jsonError("Please log in to register a company.", 401);
+        return jsonError(
+            "Please log in to register a company.",
+            401
+        );
     }
 
     const userId = parsePositiveId(currentUser.userId);
 
     if (!userId) {
-        return jsonError("Invalid logged-in user.", 401);
+        return jsonError(
+            "Invalid logged-in user.",
+            401
+        );
     }
 
-    // Verify View + Create before processing the registration.
+    // --------------------------------------------------
+    // PERMISSION CHECK
+    // --------------------------------------------------
+
     let access;
 
     try {
@@ -466,6 +657,10 @@ export async function POST(request) {
         );
     }
 
+    // --------------------------------------------------
+    // FORM DATA
+    // --------------------------------------------------
+
     let formData;
 
     try {
@@ -480,39 +675,84 @@ export async function POST(request) {
         );
     }
 
-    const companyName = getFormString(formData, "companyName");
-    const phone = getFormString(formData, "phone");
+    const companyName = getFormString(
+        formData,
+        "companyName"
+    );
+
+    const phone = getFormString(
+        formData,
+        "phone"
+    );
+
     const companyEmail = getFormString(
         formData,
         "companyEmail"
     ).toLowerCase();
-    const address = getFormString(formData, "address");
-    const city = getFormString(formData, "city");
-    const province = getFormString(formData, "province");
-    const country = getFormString(formData, "country", "Pakistan");
-    const postalCode = getFormString(formData, "postalCode");
+
+    const address = getFormString(
+        formData,
+        "address"
+    );
+
+    const city = getFormString(
+        formData,
+        "city"
+    );
+
+    const province = getFormString(
+        formData,
+        "province"
+    );
+
+    const country = getFormString(
+        formData,
+        "country",
+        "Pakistan"
+    );
+
+    const postalCode = getFormString(
+        formData,
+        "postalCode"
+    );
+
     const currency = getFormString(
         formData,
         "currency",
         "PKR"
     ).toUpperCase();
+
     const assignmentMode = getFormString(
         formData,
         "assignmentMode",
         "newAdmin"
     );
+
     const logoFile = formData.get("companyLogo");
 
-    const location = [city, province, country, postalCode]
+    const location = [
+        city,
+        province,
+        country,
+        postalCode,
+    ]
         .filter(Boolean)
         .join(", ");
 
+    // --------------------------------------------------
+    // COMPANY VALIDATION
+    // --------------------------------------------------
+
     if (!companyName) {
-        return jsonError("Company name is required.");
+        return jsonError(
+            "Company name is required."
+        );
     }
 
     if (companyName.length > 150) {
-        return jsonError("Company name cannot exceed 150 characters.");
+        return jsonError(
+            "Company name cannot exceed 150 characters."
+        );
     }
 
     if (
@@ -529,7 +769,9 @@ export async function POST(request) {
     }
 
     if (companyEmail && !validEmail(companyEmail)) {
-        return jsonError("Enter a valid company email address.");
+        return jsonError(
+            "Enter a valid company email address."
+        );
     }
 
     if (!/^[A-Z]{3}$/.test(currency)) {
@@ -539,29 +781,51 @@ export async function POST(request) {
     }
 
     if (!["newAdmin", "existingUser"].includes(assignmentMode)) {
-        return jsonError("Select a valid company access option.");
+        return jsonError(
+            "Select a valid company access option."
+        );
     }
+
+    // --------------------------------------------------
+    // ADMIN / EXISTING USER FORM VALUES
+    // --------------------------------------------------
 
     let fullName = "";
     let username = "";
     let adminEmail = "";
     let password = "";
     let confirmPassword = "";
+
     let existingUserId = null;
     let existingRoleId = null;
 
     if (assignmentMode === "newAdmin") {
-        fullName = getFormString(formData, "fullName");
-        username = getFormString(formData, "username");
+        fullName = getFormString(
+            formData,
+            "fullName"
+        );
+
+        username = getFormString(
+            formData,
+            "username"
+        );
+
         adminEmail = getFormString(
             formData,
             "adminEmail"
         ).toLowerCase();
 
         const passwordValue = formData.get("password");
-        const confirmPasswordValue = formData.get("confirmPassword");
 
-        password = typeof passwordValue === "string" ? passwordValue : "";
+        const confirmPasswordValue = formData.get(
+            "confirmPassword"
+        );
+
+        password =
+            typeof passwordValue === "string"
+                ? passwordValue
+                : "";
+
         confirmPassword =
             typeof confirmPasswordValue === "string"
                 ? confirmPasswordValue
@@ -579,7 +843,10 @@ export async function POST(request) {
             );
         }
 
-        if (fullName.length > 150 || username.length > 100) {
+        if (
+            fullName.length > 150 ||
+            username.length > 100
+        ) {
             return jsonError(
                 "Administrator name or username exceeds the allowed length."
             );
@@ -592,7 +859,9 @@ export async function POST(request) {
         }
 
         if (!validEmail(adminEmail)) {
-            return jsonError("Enter a valid administrator email.");
+            return jsonError(
+                "Enter a valid administrator email."
+            );
         }
 
         if (password.length < 8) {
@@ -602,7 +871,9 @@ export async function POST(request) {
         }
 
         if (password !== confirmPassword) {
-            return jsonError("Passwords do not match.");
+            return jsonError(
+                "Passwords do not match."
+            );
         }
     } else {
         existingUserId = parsePositiveId(
@@ -620,7 +891,11 @@ export async function POST(request) {
         }
     }
 
-    let client;
+    // --------------------------------------------------
+    // TRANSACTION VARIABLES
+    // --------------------------------------------------
+
+    let client = null;
     let transactionStarted = false;
     let savedLogo = null;
 
@@ -628,7 +903,12 @@ export async function POST(request) {
         client = await pool.connect();
 
         await client.query("BEGIN");
+
         transactionStarted = true;
+
+        // --------------------------------------------------
+        // GET CREATOR ROLE
+        // --------------------------------------------------
 
         const creatorRoleResult = await client.query(
             `
@@ -642,7 +922,8 @@ export async function POST(request) {
             [access.creatorRoleName]
         );
 
-        let creatorRoleId = creatorRoleResult.rows[0]?.role_id;
+        let creatorRoleId =
+            creatorRoleResult.rows[0]?.role_id;
 
         if (!creatorRoleId) {
             const userRoleResult = await client.query(
@@ -662,8 +943,13 @@ export async function POST(request) {
                 );
             }
 
-            creatorRoleId = userRoleResult.rows[0].role_id;
+            creatorRoleId =
+                userRoleResult.rows[0].role_id;
         }
+
+        // --------------------------------------------------
+        // VALIDATE NEW ADMIN OR EXISTING USER
+        // --------------------------------------------------
 
         let adminRoleId = null;
 
@@ -676,11 +962,15 @@ export async function POST(request) {
                    OR LOWER(email) = LOWER($2)
                 LIMIT 1;
                 `,
-                [username, adminEmail]
+                [
+                    username,
+                    adminEmail,
+                ]
             );
 
             if (duplicate.rows.length) {
                 await client.query("ROLLBACK");
+
                 transactionStarted = false;
 
                 return jsonError(
@@ -706,11 +996,15 @@ export async function POST(request) {
                 );
             }
 
-            adminRoleId = adminRoleResult.rows[0].role_id;
+            adminRoleId =
+                adminRoleResult.rows[0].role_id;
         } else {
             const selectedUserResult = await client.query(
                 `
-                SELECT user_id, is_active
+                SELECT
+                    user_id,
+                    is_active,
+                    password_hash
                 FROM users
                 WHERE user_id = $1
                 FOR UPDATE;
@@ -720,6 +1014,7 @@ export async function POST(request) {
 
             if (!selectedUserResult.rows.length) {
                 await client.query("ROLLBACK");
+
                 transactionStarted = false;
 
                 return jsonError(
@@ -728,12 +1023,26 @@ export async function POST(request) {
                 );
             }
 
-            if (!selectedUserResult.rows[0].is_active) {
+            const selectedUser =
+                selectedUserResult.rows[0];
+
+            if (!selectedUser.is_active) {
                 await client.query("ROLLBACK");
+
                 transactionStarted = false;
 
                 return jsonError(
                     "You cannot assign an inactive user."
+                );
+            }
+
+            if (!selectedUser.password_hash) {
+                await client.query("ROLLBACK");
+
+                transactionStarted = false;
+
+                return jsonError(
+                    "The selected user does not have a valid login password. Update the user's login credentials first."
                 );
             }
 
@@ -751,11 +1060,15 @@ export async function POST(request) {
                   AND c.is_active = TRUE
                 LIMIT 1;
                 `,
-                [existingUserId, userId]
+                [
+                    existingUserId,
+                    userId,
+                ]
             );
 
             if (!sharedCompany.rows.length) {
                 await client.query("ROLLBACK");
+
                 transactionStarted = false;
 
                 return jsonError(
@@ -766,7 +1079,9 @@ export async function POST(request) {
 
             const selectedRoleResult = await client.query(
                 `
-                SELECT role_id, role_name
+                SELECT
+                    role_id,
+                    role_name
                 FROM roles
                 WHERE role_id = $1
                   AND company_id IS NULL
@@ -778,6 +1093,7 @@ export async function POST(request) {
 
             if (!selectedRoleResult.rows.length) {
                 await client.query("ROLLBACK");
+
                 transactionStarted = false;
 
                 return jsonError(
@@ -789,8 +1105,12 @@ export async function POST(request) {
                 selectedRoleResult.rows[0].role_name
             ).toUpperCase();
 
-            if (!access.isAdmin && selectedRoleName !== "USER") {
+            if (
+                !access.isAdmin &&
+                selectedRoleName !== "USER"
+            ) {
                 await client.query("ROLLBACK");
+
                 transactionStarted = false;
 
                 return jsonError(
@@ -799,10 +1119,19 @@ export async function POST(request) {
                 );
             }
 
-            existingRoleId = selectedRoleResult.rows[0].role_id;
+            existingRoleId =
+                selectedRoleResult.rows[0].role_id;
         }
 
+        // --------------------------------------------------
+        // SAVE COMPANY LOGO
+        // --------------------------------------------------
+
         savedLogo = await saveCompanyLogo(logoFile);
+
+        // --------------------------------------------------
+        // CREATE COMPANY IN CENTRAL DATABASE
+        // --------------------------------------------------
 
         const companyResult = await client.query(
             `
@@ -845,34 +1174,35 @@ export async function POST(request) {
 
         const company = companyResult.rows[0];
 
+        // --------------------------------------------------
+        // DETERMINE CREATOR MEMBERSHIP ROLE
+        // --------------------------------------------------
+
         const creatorMembershipRoleId =
             assignmentMode === "existingUser" &&
             existingUserId === userId
                 ? existingRoleId
                 : creatorRoleId;
 
-        await client.query(
-            `
-            INSERT INTO user_companies (
-                user_id,
-                company_id,
-                role_id
-            )
-            VALUES ($1, $2, $3)
-            ON CONFLICT (user_id, company_id)
-            DO UPDATE SET role_id = EXCLUDED.role_id;
-            `,
-            [
-                userId,
-                company.company_id,
-                creatorMembershipRoleId,
-            ]
-        );
+        // --------------------------------------------------
+        // CREATE / ASSIGN COMPANY USERS
+        // --------------------------------------------------
 
-        let assignedUser;
+        let assignedUser = null;
 
         if (assignmentMode === "newAdmin") {
-            const passwordHash = await bcrypt.hash(password, 12);
+            // ----------------------------------------------
+            // HASH NEW ADMIN PASSWORD
+            // ----------------------------------------------
+
+            const passwordHash = await bcrypt.hash(
+                password,
+                12
+            );
+
+            // ----------------------------------------------
+            // CREATE NEW CENTRAL USER
+            // ----------------------------------------------
 
             const adminResult = await client.query(
                 `
@@ -911,41 +1241,70 @@ export async function POST(request) {
 
             assignedUser = adminResult.rows[0];
 
-            await client.query(
-                `
-                INSERT INTO user_companies (
-                    user_id,
-                    company_id,
-                    role_id
-                )
-                VALUES ($1, $2, $3)
-                ON CONFLICT (user_id, company_id)
-                DO UPDATE SET role_id = EXCLUDED.role_id;
-                `,
-                [
-                    assignedUser.user_id,
-                    company.company_id,
-                    adminRoleId,
-                ]
-            );
+            // ----------------------------------------------
+            // CREATE CREATOR MEMBERSHIP
+            // ----------------------------------------------
+
+            await createCompanyMembership({
+                client,
+                userId,
+                companyId: company.company_id,
+                roleId: creatorMembershipRoleId,
+            });
+
+            // ----------------------------------------------
+            // CREATE NEW ADMIN MEMBERSHIP
+            // ----------------------------------------------
+
+            await createNewAdminMembership({
+                client,
+                userId: assignedUser.user_id,
+                companyId: company.company_id,
+                roleId: adminRoleId,
+                passwordHash,
+            });
         } else {
-            await client.query(
-                `
-                INSERT INTO user_companies (
-                    user_id,
-                    company_id,
-                    role_id
-                )
-                VALUES ($1, $2, $3)
-                ON CONFLICT (user_id, company_id)
-                DO UPDATE SET role_id = EXCLUDED.role_id;
-                `,
-                [
-                    existingUserId,
-                    company.company_id,
-                    existingRoleId,
-                ]
-            );
+            // ----------------------------------------------
+            // EXISTING USER ASSIGNMENT
+            // ----------------------------------------------
+
+            if (existingUserId === userId) {
+                // The creator is also the selected user.
+                // Create only one membership.
+
+                await createCompanyMembership({
+                    client,
+                    userId,
+                    companyId: company.company_id,
+                    roleId: existingRoleId,
+                });
+            } else {
+                // ------------------------------------------
+                // CREATOR MEMBERSHIP
+                // ------------------------------------------
+
+                await createCompanyMembership({
+                    client,
+                    userId,
+                    companyId: company.company_id,
+                    roleId: creatorRoleId,
+                });
+
+                // ------------------------------------------
+                // SELECTED USER MEMBERSHIP
+                // ------------------------------------------
+
+                await createCompanyMembership({
+                    client,
+                    userId: existingUserId,
+                    companyId: company.company_id,
+                    roleId: existingRoleId,
+                });
+            }
+
+            // ----------------------------------------------
+            // GET ASSIGNED USER DETAILS
+            // ----------------------------------------------
 
             const assignedResult = await client.query(
                 `
@@ -955,21 +1314,113 @@ export async function POST(request) {
                     username,
                     email
                 FROM users
-                WHERE user_id = $1;
+                WHERE user_id = $1
+                LIMIT 1;
                 `,
                 [existingUserId]
             );
 
-            assignedUser = assignedResult.rows[0];
+            assignedUser =
+                assignedResult.rows[0] || null;
+
+            if (!assignedUser) {
+                throw new Error(
+                    "The assigned company user could not be found."
+                );
+            }
         }
 
+        // --------------------------------------------------
+        // COMMIT CENTRAL DATABASE TRANSACTION
+        // --------------------------------------------------
+
         await client.query("COMMIT");
+
         transactionStarted = false;
 
-        const notification = await notifySuperAdminCompanyRegistration({
-            company,
-            requesterUserId: userId,
-        });
+        console.info(
+            "[COMPANY REGISTRATION] Central company created:",
+            {
+                companyId: company.company_id,
+                companyName: company.company_name,
+            }
+        );
+
+        // --------------------------------------------------
+        // AUTOMATICALLY CREATE SEPARATE COMPANY DATABASE
+        // --------------------------------------------------
+
+        let companyDatabase;
+
+        try {
+            console.info(
+                "[COMPANY REGISTRATION] Starting database provisioning:",
+                {
+                    companyId: company.company_id,
+                }
+            );
+
+            companyDatabase = await provisionCompanyDatabase(
+                company.company_id
+            );
+
+            console.info(
+                "[COMPANY REGISTRATION] Company database created:",
+                {
+                    companyId: company.company_id,
+                    databaseName: companyDatabase.databaseName,
+                    status: companyDatabase.status,
+                }
+            );
+        } catch (databaseError) {
+            console.error(
+                "COMPANY DATABASE PROVISIONING ERROR:",
+                {
+                    companyId: company.company_id,
+                    message: databaseError.message,
+                    code: databaseError.code,
+                    detail: databaseError.detail,
+                    constraint: databaseError.constraint,
+                    table: databaseError.table,
+                    schema: databaseError.schema,
+                }
+            );
+
+            // The central company transaction has already committed.
+            // Do not pretend the company was rolled back.
+            // Do not ask the user to register the company again.
+
+            return NextResponse.json(
+                {
+                    success: false,
+                    message:
+                        "The company record was created, but its separate PostgreSQL database could not be created. Do not register this company again. Database provisioning must be retried.",
+                    company,
+                    assignedUser,
+                    companyDatabase: {
+                        databaseName: `erp_company_${String(
+                            company.company_id
+                        ).padStart(3, "0")}`,
+                        status: "FAILED",
+                    },
+                },
+                { status: 500 }
+            );
+        }
+
+        // --------------------------------------------------
+        // NOTIFY SUPER ADMIN
+        // --------------------------------------------------
+
+        const notification =
+            await notifySuperAdminCompanyRegistration({
+                company,
+                requesterUserId: userId,
+            });
+
+        // --------------------------------------------------
+        // SUCCESS RESPONSE
+        // --------------------------------------------------
 
         const registrationMessage =
             assignmentMode === "newAdmin"
@@ -980,8 +1431,13 @@ export async function POST(request) {
             {
                 success: true,
                 message: registrationMessage,
+
                 company,
+
                 assignedUser,
+
+                companyDatabase,
+
                 superAdminNotification: {
                     sent: notification.sent,
                     message: notification.message,
@@ -998,6 +1454,10 @@ export async function POST(request) {
             stack: error?.stack,
         });
 
+        // --------------------------------------------------
+        // ROLLBACK CENTRAL TRANSACTION
+        // --------------------------------------------------
+
         if (client && transactionStarted) {
             try {
                 await client.query("ROLLBACK");
@@ -1011,6 +1471,10 @@ export async function POST(request) {
             transactionStarted = false;
         }
 
+        // --------------------------------------------------
+        // REMOVE LOGO IF REGISTRATION TRANSACTION FAILED
+        // --------------------------------------------------
+
         if (savedLogo?.filePath) {
             try {
                 await unlink(savedLogo.filePath);
@@ -1022,8 +1486,16 @@ export async function POST(request) {
             }
         }
 
+        // --------------------------------------------------
+        // ERROR RESPONSES
+        // --------------------------------------------------
+
         if (error?.status === 400) {
-            return jsonError(error.message, 400, error);
+            return jsonError(
+                error.message,
+                400,
+                error
+            );
         }
 
         if (error?.code === "23505") {

@@ -783,3 +783,68 @@ export async function PUT(request) {
     client.release();
   }
 }
+
+async function validatePostingAccounts(client, items) {
+  const accountIds = [
+    ...new Set(items.map((item) => Number(item.accountId))),
+  ];
+
+  if (
+    accountIds.some(
+      (id) => !Number.isInteger(id) || id <= 0
+    )
+  ) {
+    throw new Error("One or more account IDs are invalid.");
+  }
+
+  const result = await client.query(
+    `
+      SELECT
+        a.account_id,
+        a.account_code,
+        a.account_name,
+        a.account_type,
+        a.is_group,
+        a.is_active,
+        EXISTS (
+          SELECT 1
+          FROM chart_of_accounts child
+          WHERE child.parent_account_id = a.account_id
+        ) AS has_children
+      FROM chart_of_accounts a
+      WHERE a.account_id = ANY($1::int[])
+    `,
+    [accountIds]
+  );
+
+  const accounts = new Map(
+    result.rows.map((account) => [
+      Number(account.account_id),
+      account,
+    ])
+  );
+
+  for (const accountId of accountIds) {
+    const account = accounts.get(accountId);
+
+    if (!account) {
+      throw new Error(
+        `Account ID ${accountId} does not exist.`
+      );
+    }
+
+    if (!account.is_active) {
+      throw new Error(
+        `Account "${account.account_name}" is inactive and cannot receive transactions.`
+      );
+    }
+
+    if (account.is_group || account.has_children) {
+      throw new Error(
+        `Account "${account.account_name}" is a summary account. Select its final-level child account instead.`
+      );
+    }
+  }
+
+  return accounts;
+}

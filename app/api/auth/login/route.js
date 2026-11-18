@@ -29,23 +29,29 @@ function normalizeCompanyName(name) {
     .toLowerCase();
 }
 
+
 function getUniqueCompanies(users) {
   const companies = new Map();
 
   for (const user of users) {
+    const companyId = Number(user.company_id);
+
     const companyName = String(user.company_name || "")
       .trim()
       .replace(/\s+/g, " ");
 
-    const normalizedName = normalizeCompanyName(companyName);
-
-    if (!companyName || !normalizedName) {
+    if (
+      !Number.isSafeInteger(companyId) ||
+      companyId <= 0 ||
+      !companyName
+    ) {
       continue;
     }
 
-    if (!companies.has(normalizedName)) {
-      companies.set(normalizedName, {
-        company_id: Number(user.company_id),
+    // Company ID is unique. Company names are not.
+    if (!companies.has(companyId)) {
+      companies.set(companyId, {
+        company_id: companyId,
         company_name: companyName,
       });
     }
@@ -53,6 +59,7 @@ function getUniqueCompanies(users) {
 
   return Array.from(companies.values());
 }
+
 
 function roundTimings(timings) {
   return Object.fromEntries(

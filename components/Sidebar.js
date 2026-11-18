@@ -1,7 +1,12 @@
 
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -41,6 +46,66 @@ import { erpModules } from "@/lib/erp-modules";
 
 const STORAGE_KEY = "erp-sidebar-mode";
 const PERMISSIONS_URL = "/api/permissions/current";
+
+// Shared between Sidebar mounts to avoid repeated API requests.
+const PERMISSION_CACHE_TTL = 30 * 1000;
+
+let sidebarPermissionCache = null;
+let sidebarPermissionRequest = null;
+
+async function fetchSidebarPermissions(forceRefresh = false) {
+  const cacheIsValid =
+    sidebarPermissionCache &&
+    Date.now() - sidebarPermissionCache.timestamp <
+    PERMISSION_CACHE_TTL;
+
+  if (!forceRefresh && cacheIsValid) {
+    return sidebarPermissionCache.data;
+  }
+
+  // Reuse an existing request instead of sending duplicates.
+  if (sidebarPermissionRequest) {
+    return sidebarPermissionRequest;
+  }
+
+  sidebarPermissionRequest = (async () => {
+    const response = await fetch(PERMISSIONS_URL, {
+      method: "GET",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Permission request failed (${response.status})`
+      );
+    }
+
+    const data = await response.json();
+
+    if (!Array.isArray(data.permissions)) {
+      throw new Error(
+        "Invalid permissions response"
+      );
+    }
+
+    sidebarPermissionCache = {
+      data,
+      timestamp: Date.now(),
+    };
+
+    return data;
+  })();
+
+  try {
+    return await sidebarPermissionRequest;
+  } finally {
+    sidebarPermissionRequest = null;
+  }
+}
 
 // =====================================================
 // ROUTE PERMISSIONS
@@ -270,8 +335,8 @@ function ModeSelector({ mode, onModeChange }) {
         title="Vertical navigation"
         aria-pressed={mode === "vertical"}
         className={`flex items-center justify-center rounded-md p-1.5 transition-colors ${mode === "vertical"
-            ? "bg-blue-600 text-white"
-            : "text-slate-400 hover:bg-slate-800 hover:text-white"
+          ? "bg-blue-600 text-white"
+          : "text-slate-400 hover:bg-slate-800 hover:text-white"
           }`}
       >
         <PanelLeft size={14} />
@@ -279,16 +344,12 @@ function ModeSelector({ mode, onModeChange }) {
 
       {/* Modules */}
       <Link
-  href="/dashboard/modules"
-  onClick={() => {
-    // The mode selector is outside SidebarContent.
-    // Navigation state is reset by the next route's active module.
-  }}
-  aria-label="Modules"
+        href="/dashboard/modules"
+        aria-label="Modules"
         title="Modules"
         className={`flex items-center justify-center rounded-md p-1.5 transition-colors ${modulesActive
-            ? "bg-blue-600 text-white"
-            : "text-slate-400 hover:bg-slate-800 hover:text-white"
+          ? "bg-blue-600 text-white"
+          : "text-slate-400 hover:bg-slate-800 hover:text-white"
           }`}
       >
         <Grid3X3 size={14} />
@@ -302,8 +363,8 @@ function ModeSelector({ mode, onModeChange }) {
         title="Horizontal navigation"
         aria-pressed={mode === "horizontal"}
         className={`flex items-center justify-center rounded-md p-1.5 transition-colors ${mode === "horizontal"
-            ? "bg-blue-600 text-white"
-            : "text-slate-400 hover:bg-slate-800 hover:text-white"
+          ? "bg-blue-600 text-white"
+          : "text-slate-400 hover:bg-slate-800 hover:text-white"
           }`}
       >
         <PanelsTopLeft size={14} />
@@ -363,47 +424,20 @@ function SidebarContent({
   const [openSection, setOpenSection] = useState(undefined);
 
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [compactSidebar, setCompactSidebar] = useState(false);
+  // const [compactSidebar, setCompactSidebar] = useState(false);
 
-  const permissionControllerRef = useRef(null);
+  // const permissionControllerRef = useRef(null);
 
   const layoutMode = savedMode ?? mode;
   const isHorizontal = layoutMode === "horizontal";
 
   // ===================================================
-  // LOAD PERMISSIONS
+  // LOAD PERMISSIONS - OPTIMIZED
   // ===================================================
 
-  const loadPermissions = useCallback(async () => {
-    permissionControllerRef.current?.abort();
-
-    const controller = new AbortController();
-    permissionControllerRef.current = controller;
-
+  const loadPermissions = useCallback(async (forceRefresh = false) => {
     try {
-      const response = await fetch(PERMISSIONS_URL, {
-        method: "GET",
-        credentials: "same-origin",
-        cache: "no-store",
-        signal: controller.signal,
-        headers: {
-          Accept: "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Permission request failed (${response.status})`
-        );
-      }
-
-      const data = await response.json();
-
-      if (!Array.isArray(data.permissions)) {
-        throw new Error(
-          "Invalid permissions response: expected permissions array"
-        );
-      }
+      const data = await fetchSidebarPermissions(forceRefresh);
 
       const nextPermissions = new Map();
 
@@ -420,44 +454,35 @@ function SidebarContent({
         );
       }
 
-      if (controller.signal.aborted) return;
-
       setPermissions(nextPermissions);
       setPermissionsError(false);
-      setPermissionsLoading(false);
     } catch (error) {
-      if (
-        error.name === "AbortError" ||
-        controller.signal.aborted
-      ) {
-        return;
-      }
-
       console.error(
         "Could not load sidebar permissions:",
         error
       );
 
-      setPermissions(new Map());
       setPermissionsError(true);
+    } finally {
       setPermissionsLoading(false);
     }
   }, []);
 
+  // Load once when the sidebar mounts.
   useEffect(() => {
-    const timer = setTimeout(() => {
-      void loadPermissions();
-    }, 0);
+  const timer = window.setTimeout(() => {
+    void loadPermissions(false);
+  }, 0);
 
-    return () => {
-      clearTimeout(timer);
-      permissionControllerRef.current?.abort();
-    };
-  }, [loadPermissions]);
+  return () => {
+    window.clearTimeout(timer);
+  };
+}, [loadPermissions]);
 
+  // Refresh immediately when User Rights changes.
   useEffect(() => {
     function handlePermissionsUpdated() {
-      void loadPermissions();
+      void loadPermissions(true);
     }
 
     window.addEventListener(
@@ -504,9 +529,9 @@ function SidebarContent({
   // FILTER MODULES BY PERMISSIONS
   // ===================================================
 
-  const visibleModules = filterModulesByPermission(
-    erpModules,
-    permissions
+  const visibleModules = useMemo(
+    () => filterModulesByPermission(erpModules, permissions),
+    [permissions]
   );
 
   const currentModule = visibleModules.find((module) => {
@@ -541,22 +566,22 @@ function SidebarContent({
   // SIDEBAR DENSITY
   // ===================================================
 
-  useEffect(() => {
-    function updateSidebarDensity() {
-      setCompactSidebar(window.innerHeight < 850);
-    }
+  // useEffect(() => {
+  //   function updateSidebarDensity() {
+  //     setCompactSidebar(window.innerHeight < 850);
+  //   }
 
-    updateSidebarDensity();
+  //   updateSidebarDensity();
 
-    window.addEventListener("resize", updateSidebarDensity);
+  //   window.addEventListener("resize", updateSidebarDensity);
 
-    return () => {
-      window.removeEventListener(
-        "resize",
-        updateSidebarDensity
-      );
-    };
-  }, []);
+  //   return () => {
+  //     window.removeEventListener(
+  //       "resize",
+  //       updateSidebarDensity
+  //     );
+  //   };
+  // }, []);
 
   // ===================================================
   // RESTORE SAVED LAYOUT
@@ -592,10 +617,10 @@ function SidebarContent({
   // Reset expansion state after navigation so the active
   // module and section automatically open again.
   const handleNavigation = () => {
-  setOpenModule(undefined);
-  setOpenSection(undefined);
-  setMobileOpen(false);
-};
+    setOpenModule(undefined);
+    setOpenSection(undefined);
+    setMobileOpen(false);
+  };
 
   // ===================================================
   // NAVIGATION HELPERS
@@ -757,8 +782,8 @@ function SidebarContent({
         href="/dashboard"
         onClick={handleNavigation}
         className={`flex shrink-0 items-center gap-2 rounded-lg transition-colors ${horizontal
-            ? "px-3 py-2 text-xs"
-            : "px-3 py-2.5 text-sm"
+          ? "px-3 py-2 text-xs"
+          : "px-3 py-2.5 text-sm"
           } font-medium ${active
             ? "bg-blue-600 text-white shadow-sm"
             : "text-slate-300 hover:bg-slate-800 hover:text-white"
@@ -866,8 +891,8 @@ function SidebarContent({
               href={item.href}
               onClick={handleNavigation}
               className={`block rounded-md px-2 py-1.5 text-xs transition-colors ${active
-                  ? "bg-blue-600/20 font-semibold text-blue-300"
-                  : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                ? "bg-blue-600/20 font-semibold text-blue-300"
+                : "text-slate-400 hover:bg-slate-800 hover:text-white"
                 }`}
             >
               {item.name}
@@ -898,8 +923,8 @@ function SidebarContent({
           onClick={() => toggleSection(sectionKey)}
           aria-expanded={Boolean(sectionOpen)}
           className={`flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${sectionActive || sectionOpen
-              ? "bg-slate-800 text-blue-300"
-              : "text-slate-300 hover:bg-slate-800 hover:text-white"
+            ? "bg-slate-800 text-blue-300"
+            : "text-slate-300 hover:bg-slate-800 hover:text-white"
             }`}
         >
           {sectionOpen ? (
@@ -978,8 +1003,8 @@ function SidebarContent({
                   {/* Parent module */}
                   <div
                     className={`flex min-w-0 items-center rounded-lg transition-colors ${moduleActive || modulePageActive || isOpen
-                        ? "bg-slate-800 text-white"
-                        : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                      ? "bg-slate-800 text-white"
+                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
                       }`}
                   >
                     <button
@@ -1095,8 +1120,8 @@ function SidebarContent({
                   onClick={() => toggleModule(module.id)}
                   aria-expanded={Boolean(isOpen)}
                   className={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors ${moduleActive || isOpen
-                      ? "bg-blue-600 text-white"
-                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                    ? "bg-blue-600 text-white"
+                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
                     }`}
                 >
                   <ModuleIcon size={15} />
@@ -1329,8 +1354,8 @@ function SidebarContent({
         data-sidebar-root
         data-erp-sidebar
         className={`isolate fixed inset-y-0 left-0 z-50 flex h-dvh max-h-dvh w-fit min-w-[220px] max-w-[min(320px,calc(100vw-1rem))] shrink-0 flex-col overflow-hidden overscroll-none border-r border-slate-800 bg-slate-950 text-white shadow-xl transition-transform duration-200 md:sticky md:top-0 md:h-dvh md:max-h-dvh md:translate-x-0 md:w-fit md:min-w-[220px] md:max-w-[320px] ${mobileOpen
-            ? "translate-x-0"
-            : "-translate-x-full"
+          ? "translate-x-0"
+          : "-translate-x-full"
           }`}
       >
         {/* Sidebar brand */}

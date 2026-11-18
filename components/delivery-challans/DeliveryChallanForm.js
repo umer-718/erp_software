@@ -26,6 +26,13 @@ const emptyItem = () => ({
     memo: "",
 });
 
+const emptyQuickItem = () => ({
+    search: "",
+    quantity: "1",
+    unitPrice: "0",
+    tax: "0",
+});
+
 const inputClass =
     "mt-1.5 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
 
@@ -34,16 +41,16 @@ const labelClass =
 
 const LINE_COLUMNS = [
     { key: "number", label: "#" },
-    { key: "item_name", label: "Item Name" },
-    { key: "item_description", label: "Description" },
-    { key: "item_balance", label: "Item Balance" },
-    { key: "uom", label: "UOM" },
+    { key: "item_name", label: "Product" },
     { key: "quantity", label: "Quantity" },
     { key: "unit_price", label: "Unit Price" },
     { key: "amount", label: "Amount" },
     { key: "tax_rate", label: "Tax Rate (%)" },
     { key: "tax_amount", label: "Tax Amount" },
-    { key: "gross_amount", label: "Gross Amount" },
+    { key: "gross_amount", label: "Line Total" },
+    { key: "item_description", label: "Description" },
+    { key: "item_balance", label: "Item Balance" },
+    { key: "uom", label: "UOM" },
     { key: "tax_code", label: "Tax Code" },
     { key: "memo", label: "Memo" },
 ];
@@ -76,6 +83,16 @@ function calculateLine(line) {
     };
 }
 
+function calculateLineTotal({ quantity, unitPrice, tax }) {
+    const amount =
+        Number(quantity || 0) * Number(unitPrice || 0);
+
+    const taxAmount =
+        amount * Number(tax || 0) / 100;
+
+    return Math.round((amount + taxAmount) * 100) / 100;
+}
+
 function formatNumber(value) {
     return Number(value || 0).toLocaleString("en-PK", {
         minimumFractionDigits: 2,
@@ -86,6 +103,9 @@ function formatNumber(value) {
 export default function DeliveryChallanForm({ challanId = null }) {
     const router = useRouter();
     const editing = Boolean(challanId);
+
+    const quickInputRef = useRef(null);
+    const columnsMenuRef = useRef(null);
 
     const [lookups, setLookups] = useState({
         customers: [],
@@ -112,14 +132,10 @@ export default function DeliveryChallanForm({ challanId = null }) {
         exchange_rate: "1",
     });
 
-    // Saved transaction lines.
     const [lines, setLines] = useState([]);
 
-    // The one currently active item-entry row.
-    const [draftLine, setDraftLine] = useState(emptyItem());
-
-    // Editing an existing transaction line.
-    const [editingLineIndex, setEditingLineIndex] = useState(null);
+    const [quick, setQuick] = useState(emptyQuickItem());
+    const [quickError, setQuickError] = useState("");
 
     const [transactionNumber, setTransactionNumber] =
         useState("TO BE GENERATED");
@@ -131,13 +147,13 @@ export default function DeliveryChallanForm({ challanId = null }) {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
 
-    // Transaction line column visibility.
     const [columnsOpen, setColumnsOpen] = useState(false);
-    const columnsMenuRef = useRef(null);
+
     const [visibleColumns, setVisibleColumns] = useState(
         DEFAULT_VISIBLE_COLUMNS
     );
 
+    // Close the column menu when clicking outside or pressing Escape.
     useEffect(() => {
         if (!columnsOpen) return;
 
@@ -167,6 +183,7 @@ export default function DeliveryChallanForm({ challanId = null }) {
         };
     }, [columnsOpen]);
 
+    // Load lookup data and existing challan when editing.
     useEffect(() => {
         let cancelled = false;
 
@@ -200,61 +217,76 @@ export default function DeliveryChallanForm({ challanId = null }) {
                     lookupData.data?.products ||
                     [];
 
-                setLookups({
-                    customers: lookupData.customers || [],
-                    warehouses: lookupData.warehouses || [],
-
-                    products: productList.map((product) => ({
+                const normalizedProducts = productList
+                    .map((product) => ({
                         ...product,
+
                         product_id: String(
                             product.product_id ??
                             product.id ??
                             ""
                         ),
+
                         product_name:
                             product.product_name ||
                             product.item_name ||
                             product.name ||
                             product.description ||
                             "",
+
                         product_code:
                             product.sku ||
                             product.product_code ||
                             product.item_code ||
                             product.code ||
                             "",
+
                         description:
                             product.description ||
                             product.item_description ||
                             "",
+
                         sales_unit:
                             product.sales_unit ||
                             product.sale_unit ||
                             product.unit ||
                             product.uom ||
                             "PCS",
+
                         sale_price: Number(
                             product.sale_price ??
                             product.sales_price ??
                             product.unit_price ??
                             0
                         ),
-                    })).filter(
-                        (product) => product.product_id && product.product_name
-                    ),
 
+                        is_active:
+                            product.is_active !== false,
+                    }))
+                    .filter(
+                        (product) =>
+                            product.product_id &&
+                            product.product_name
+                    );
+
+                setLookups({
+                    customers: lookupData.customers || [],
+                    warehouses: lookupData.warehouses || [],
+                    products: normalizedProducts,
                     company: lookupData.company || null,
                 });
 
                 setForm((previous) => ({
                     ...previous,
+
                     subsidiary_name:
                         previous.subsidiary_name ||
                         lookupData.company?.company_name ||
                         "",
+
                     currency:
                         previous.currency === "PKR" &&
-                            lookupData.company?.currency
+                        lookupData.company?.currency
                             ? lookupData.company.currency
                             : previous.currency,
                 }));
@@ -301,17 +333,22 @@ export default function DeliveryChallanForm({ challanId = null }) {
                         transaction_date: String(
                             c.transaction_date || today()
                         ).slice(0, 10),
+
                         customer_id: c.customer_id
                             ? String(c.customer_id)
                             : "",
+
                         warehouse_id: c.warehouse_id
                             ? String(c.warehouse_id)
                             : "",
+
                         status: c.status || "DRAFT",
                         subsidiary_name: c.subsidiary_name || "",
                         department: c.department || "",
+
                         challan_class:
                             c.challan_class || "Outbound Shipment",
+
                         driver_name: c.driver_name || "",
                         driver_mobile_no: c.driver_mobile_no || "",
                         vehicle_no: c.vehicle_no || "",
@@ -328,19 +365,30 @@ export default function DeliveryChallanForm({ challanId = null }) {
                                 product_id: item.product_id
                                     ? String(item.product_id)
                                     : "",
+
                                 item_name: item.item_name || "",
+
                                 item_description:
                                     item.item_description || "",
+
                                 item_balance: Number(
                                     item.item_balance || 0
                                 ),
-                                uom: item.uom || "",
+
+                                uom: item.uom || "PCS",
+
                                 quantity: Number(item.quantity || 1),
+
                                 unit_price: Number(
                                     item.unit_price || 0
                                 ),
+
                                 tax_code: item.tax_code || "",
-                                tax_rate: Number(item.tax_rate || 0),
+
+                                tax_rate: Number(
+                                    item.tax_rate || 0
+                                ),
+
                                 memo: item.memo || "",
                             })
                         )
@@ -373,173 +421,180 @@ export default function DeliveryChallanForm({ challanId = null }) {
         }));
     }
 
-    function changeDraftLine(name, value) {
-        setDraftLine((previous) => ({
+    function setQuickField(name, value) {
+        setQuick((previous) => ({
             ...previous,
             [name]: value,
         }));
+
+        setQuickError("");
     }
 
-    function chooseProduct(productId) {
-        const product = lookups.products.find(
-            (item) => String(item.product_id) === String(productId)
-        );
+    // Find a product from its SKU, code, or name.
+    function findQuickProduct(searchValue) {
+        const search = String(searchValue || "").trim();
 
-        if (!productId || !product) {
-            setDraftLine((previous) => ({
-                ...previous,
-                product_id: "",
-                item_name: "",
-                item_description: "",
-                unit_price: 0,
-            }));
-            return;
-        }
+        if (!search) return null;
 
-        setDraftLine((previous) => ({
+        const normalizedSearch = search.toLowerCase();
+
+        return lookups.products.find((product) => {
+            const fullLabel = product.product_code
+                ? `${product.product_code} - ${product.product_name}`
+                : product.product_name;
+
+            return (
+                fullLabel.toLowerCase() === normalizedSearch ||
+                product.product_name.toLowerCase() === normalizedSearch ||
+                product.product_code.toLowerCase() === normalizedSearch ||
+                String(product.product_id) === search
+            );
+        }) || null;
+    }
+
+    function handleQuickProductChange(value) {
+        setQuick((previous) => ({
             ...previous,
-            product_id: String(product.product_id),
-            item_name: product.product_name,
-            item_description: product.description || "",
-            uom: product.sales_unit || "PCS",
-            unit_price: Number(product.sale_price || 0),
+            search: value,
         }));
+
+        setQuickError("");
     }
 
-    function addLine() {
-        setError("");
+    // Add the product from the quick-add bar.
+    function addQuickItem() {
+        const product = findQuickProduct(quick.search);
 
-        const itemName = String(draftLine.item_name || "").trim();
-        const quantity = Number(draftLine.quantity);
-        const unitPrice = Number(draftLine.unit_price);
-        const taxRate = Number(draftLine.tax_rate || 0);
-        const itemBalance = Number(draftLine.item_balance || 0);
+        if (!product) {
+            setQuickError(
+                "Please select a valid product from the product list."
+            );
 
-        if (!draftLine.product_id || !itemName) {
-            setError("Please select an Item Name from the product dropdown.");
+            quickInputRef.current?.focus();
             return;
         }
+
+        const quantity = Number(quick.quantity);
+        const unitPrice = Number(quick.unitPrice);
+        const taxRate = Number(quick.tax);
 
         if (!Number.isFinite(quantity) || quantity <= 0) {
-            setError("Quantity must be greater than zero.");
+            setQuickError("Quantity must be greater than zero.");
             return;
         }
 
         if (!Number.isFinite(unitPrice) || unitPrice < 0) {
-            setError("Unit Price cannot be negative.");
+            setQuickError("Unit price cannot be negative.");
             return;
         }
 
         if (!Number.isFinite(taxRate) || taxRate < 0) {
-            setError("Tax Rate cannot be negative.");
+            setQuickError("Tax rate cannot be negative.");
             return;
         }
 
-        if (!Number.isFinite(itemBalance) || itemBalance < 0) {
-            setError("Item Balance cannot be negative.");
-            return;
-        }
+        const newItem = calculateLine({
+            ...emptyItem(),
 
-        const newLine = calculateLine({
-            ...draftLine,
-            item_name: itemName,
+            product_id: String(product.product_id),
+            item_name: product.product_name,
+            item_description: product.description || "",
+            uom: product.sales_unit || "PCS",
+            item_balance: Number(
+                product.stock_quantity ??
+                product.quantity_on_hand ??
+                product.item_balance ??
+                0
+            ),
+
             quantity,
             unit_price: unitPrice,
             tax_rate: taxRate,
-            item_balance: itemBalance,
         });
 
-        if (editingLineIndex !== null) {
-            setLines((previous) =>
-                previous.map((line, index) =>
-                    index === editingLineIndex ? newLine : line
-                )
-            );
+        setLines((previous) => [
+            ...previous,
+            newItem,
+        ]);
 
-            setEditingLineIndex(null);
-        } else {
-            setLines((previous) => [...previous, newLine]);
-        }
-
-        // Clear the entry fields for the next item.
-        setDraftLine(emptyItem());
-
+        setQuick(emptyQuickItem());
+        setQuickError("");
         setError("");
 
-        // Keep the user at the entry area, ready for another item.
-        requestAnimationFrame(() => {
-            document
-                .getElementById("delivery-challan-line-entry")
-                ?.scrollIntoView({
-                    behavior: "smooth",
-                    block: "nearest",
-                });
-        });
+        quickInputRef.current?.focus();
     }
 
-    function handleLineKeyDown(event) {
+    function handleQuickKeyDown(event) {
         if (event.key !== "Enter") return;
 
         event.preventDefault();
-
-        if (event.target.tagName === "TEXTAREA") return;
-
-        addLine();
+        addQuickItem();
     }
 
-    function editLine(index) {
-        const line = lines[index];
+    // Update an existing product row.
+    function updateLine(index, name, value) {
+        setLines((previous) =>
+            previous.map((line, lineIndex) => {
+                if (lineIndex !== index) return line;
 
-        if (!line) return;
+                const updated = {
+                    ...line,
+                    [name]: value,
+                };
 
-        setDraftLine({
-            product_id: line.product_id
-                ? String(line.product_id)
-                : "",
-            item_name: line.item_name || "",
-            item_description: line.item_description || "",
-            item_balance: Number(line.item_balance || 0),
-            uom: line.uom || "",
-            quantity: Number(line.quantity || 1),
-            unit_price: Number(line.unit_price || 0),
-            tax_code: line.tax_code || "",
-            tax_rate: Number(line.tax_rate || 0),
-            memo: line.memo || "",
-        });
+                if (name === "product_id") {
+                    const product = lookups.products.find(
+                        (item) =>
+                            String(item.product_id) === String(value)
+                    );
 
-        setEditingLineIndex(index);
+                    if (product) {
+                        updated.item_name = product.product_name;
+                        updated.item_description =
+                            product.description || "";
+
+                        updated.uom =
+                            product.sales_unit || "PCS";
+
+                        updated.unit_price =
+                            Number(product.sale_price || 0);
+
+                        updated.item_balance = Number(
+                            product.stock_quantity ??
+                            product.quantity_on_hand ??
+                            product.item_balance ??
+                            0
+                        );
+                    } else {
+                        updated.item_name = "";
+                        updated.item_description = "";
+                        updated.uom = "PCS";
+                        updated.unit_price = 0;
+                        updated.item_balance = 0;
+                    }
+                }
+
+                return calculateLine(updated);
+            })
+        );
+
         setError("");
-
-        document
-            .getElementById("delivery-challan-line-entry")
-            ?.scrollIntoView({
-                behavior: "smooth",
-                block: "center",
-            });
     }
 
     function removeLine(index) {
         setLines((previous) =>
-            previous.filter((_, lineIndex) => lineIndex !== index)
+            previous.filter(
+                (_, lineIndex) => lineIndex !== index
+            )
         );
-
-        if (editingLineIndex === index) {
-            setEditingLineIndex(null);
-            setDraftLine(emptyItem());
-        } else if (
-            editingLineIndex !== null &&
-            index < editingLineIndex
-        ) {
-            setEditingLineIndex((previous) => previous - 1);
-        }
     }
-
 
     function toggleColumn(key) {
         setVisibleColumns((previous) => {
-            const currentlyVisible = Object.values(previous).filter(Boolean).length;
+            const currentlyVisible = Object.values(previous).filter(
+                Boolean
+            ).length;
 
-            // Always keep at least one column visible.
             if (previous[key] && currentlyVisible <= 1) {
                 return previous;
             }
@@ -582,19 +637,65 @@ export default function DeliveryChallanForm({ challanId = null }) {
     async function save(event) {
         event.preventDefault();
 
-        if (editingLineIndex !== null) {
-            setError(
-                "Please finish adding or updating the current transaction line before saving."
-            );
-            setActiveTab("Transaction Lines");
+        if (!form.customer_id) {
+            setError("Please select a customer.");
+            return;
+        }
+
+        if (!form.warehouse_id) {
+            setError("Please select a location.");
             return;
         }
 
         if (lines.length === 0) {
             setError(
-                "Please add at least one transaction line before saving."
+                "Please add at least one product before saving."
             );
+
             setActiveTab("Transaction Lines");
+            return;
+        }
+
+        for (const line of lines) {
+            if (!line.product_id || !line.item_name) {
+                setError(
+                    "Please select a product for every transaction line."
+                );
+
+                setActiveTab("Transaction Lines");
+                return;
+            }
+
+            if (
+                !Number.isFinite(Number(line.quantity)) ||
+                Number(line.quantity) <= 0
+            ) {
+                setError(
+                    "Every product quantity must be greater than zero."
+                );
+
+                setActiveTab("Transaction Lines");
+                return;
+            }
+
+            if (
+                !Number.isFinite(Number(line.unit_price)) ||
+                Number(line.unit_price) < 0
+            ) {
+                setError(
+                    "Every product must have a valid unit price."
+                );
+
+                setActiveTab("Transaction Lines");
+                return;
+            }
+        }
+
+        if (
+            !Number.isFinite(Number(form.exchange_rate)) ||
+            Number(form.exchange_rate) <= 0
+        ) {
+            setError("Exchange rate must be greater than zero.");
             return;
         }
 
@@ -604,22 +705,37 @@ export default function DeliveryChallanForm({ challanId = null }) {
         try {
             const payload = {
                 ...form,
+
                 customer_id: form.customer_id,
                 warehouse_id: form.warehouse_id,
-                exchange_rate: Number(form.exchange_rate || 1),
+
+                exchange_rate: Number(
+                    form.exchange_rate || 1
+                ),
+
                 items: calculatedLines.map((line) => ({
                     product_id: line.product_id || null,
+
                     item_name: line.item_name,
-                    item_description: line.item_description,
+
+                    item_description:
+                        line.item_description || "",
+
                     item_balance: Number(
                         line.item_balance || 0
                     ),
-                    uom: line.uom,
+
+                    uom: line.uom || "PCS",
+
                     quantity: Number(line.quantity),
+
                     unit_price: Number(line.unit_price),
-                    tax_code: line.tax_code,
+
+                    tax_code: line.tax_code || "",
+
                     tax_rate: Number(line.tax_rate || 0),
-                    memo: line.memo,
+
+                    memo: line.memo || "",
                 })),
             };
 
@@ -629,10 +745,13 @@ export default function DeliveryChallanForm({ challanId = null }) {
                     : "/api/delivery-challans",
                 {
                     method: editing ? "PUT" : "POST",
+
                     headers: {
                         "Content-Type": "application/json",
                     },
+
                     credentials: "same-origin",
+
                     body: JSON.stringify(payload),
                 }
             );
@@ -681,7 +800,7 @@ export default function DeliveryChallanForm({ challanId = null }) {
 
     return (
         <form onSubmit={save} className="space-y-6">
-            {/* Page header */}
+            {/* PAGE HEADER */}
             <header className="rounded-3xl bg-gradient-to-r from-blue-700 via-blue-600 to-emerald-600 p-6 text-white shadow-xl sm:p-8">
                 <Link
                     href="/dashboard/delivery-challans"
@@ -715,6 +834,7 @@ export default function DeliveryChallanForm({ challanId = null }) {
                 </div>
             </header>
 
+            {/* ERROR MESSAGE */}
             {error && (
                 <div
                     role="alert"
@@ -735,7 +855,7 @@ export default function DeliveryChallanForm({ challanId = null }) {
                 </div>
             )}
 
-            {/* Transaction information */}
+            {/* TRANSACTION INFORMATION */}
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
                 <div className="mb-5 flex items-center justify-between gap-3">
                     <div>
@@ -777,7 +897,10 @@ export default function DeliveryChallanForm({ challanId = null }) {
                             className={inputClass}
                             value={form.customer_id}
                             onChange={(event) =>
-                                change("customer_id", event.target.value)
+                                change(
+                                    "customer_id",
+                                    event.target.value
+                                )
                             }
                         >
                             <option value="">Select customer</option>
@@ -970,8 +1093,8 @@ export default function DeliveryChallanForm({ challanId = null }) {
                         <input
                             className={inputClass}
                             type="number"
-                            min="1"
-                            step="1"
+                            min="0.000001"
+                            step="any"
                             required
                             value={form.exchange_rate}
                             onChange={(event) =>
@@ -998,7 +1121,7 @@ export default function DeliveryChallanForm({ challanId = null }) {
                 </div>
             </section>
 
-            {/* Transaction tabs and lines */}
+            {/* TRANSACTION TABS */}
             <section className="relative rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
                 <div className="flex flex-wrap gap-2 border-b border-slate-200 p-3 dark:border-slate-800">
                     {tabs.map((tab) => (
@@ -1006,10 +1129,11 @@ export default function DeliveryChallanForm({ challanId = null }) {
                             key={tab}
                             type="button"
                             onClick={() => setActiveTab(tab)}
-                            className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${activeTab === tab
-                                ? "bg-blue-600 text-white shadow"
-                                : "text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                                }`}
+                            className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+                                activeTab === tab
+                                    ? "bg-blue-600 text-white shadow"
+                                    : "text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                            }`}
                         >
                             {tab}
                         </button>
@@ -1017,488 +1141,446 @@ export default function DeliveryChallanForm({ challanId = null }) {
                 </div>
 
                 {activeTab === "Transaction Lines" ? (
-                    <>
-                        {/* Transaction line heading */}
-                        <div className="flex flex-col justify-between gap-3 border-b border-slate-200 p-5 dark:border-slate-800 sm:flex-row sm:items-center">
+                    <div className="p-4 sm:p-5">
+                        {/* SECTION HEADER */}
+                        <div className="mb-4 flex items-center gap-3">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-sm font-extrabold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
+                                02
+                            </span>
+
                             <div>
-                                <h2 className="text-lg font-bold">
-                                    Transaction Lines
-                                </h2>
+                                <h3 className="font-bold text-slate-900 dark:text-white">
+                                    Transaction Items
+                                </h3>
 
-                                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                                    Enter an item and add it to the transaction.
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    Search or scan a product, enter its details, then press Enter or click Add.
                                 </p>
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-3">
-                                <span className="rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
-                                    {lines.length} item(s)
-                                </span>
-
-                                <div className="relative" ref={columnsMenuRef}>
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setColumnsOpen((previous) => !previous)
-                                        }
-                                        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"
-                                    >
-                                        <span>☷</span>
-                                        Columns
-                                        <span>⌄</span>
-                                    </button>
-
-                                    {columnsOpen && (
-                                        <div className="absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
-                                            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
-                                                <span className="font-bold">
-                                                    Show / Hide Columns
-                                                </span>
-
-                                                <button
-                                                    type="button"
-                                                    onClick={showAllColumns}
-                                                    className="text-xs font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400"
-                                                >
-                                                    Show All
-                                                </button>
-                                            </div>
-
-                                            <div className="mt-2 max-h-72 space-y-1 overflow-y-auto">
-                                                {LINE_COLUMNS.map((column) => (
-                                                    <label
-                                                        key={column.key}
-                                                        className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
-                                                    >
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={Boolean(
-                                                                visibleColumns[column.key]
-                                                            )}
-                                                            onChange={() =>
-                                                                toggleColumn(column.key)
-                                                            }
-                                                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                                        />
-
-                                                        <span>
-                                                            {column.label}
-                                                        </span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
                             </div>
                         </div>
 
-                        {/* Single item entry workspace */}
-                        <div
-                            id="delivery-challan-line-entry"
-                            className="border-b border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/50 sm:p-5"
-                        >
-                            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                                <div>
-                                    <h3 className="font-bold text-slate-800 dark:text-slate-100">
-                                        {editingLineIndex !== null
-                                            ? `Update Line ${editingLineIndex + 1}`
-                                            : "New Transaction Line"}
-                                    </h3>
+                        {/* QUICK ADD BAR */}
+                        <div className="mb-4 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 dark:border-indigo-900/60 dark:bg-indigo-950/20">
+                            <div className="grid grid-cols-2 gap-3 lg:grid-cols-[minmax(220px,2.2fr)_repeat(3,minmax(100px,1fr))_minmax(130px,1fr)_auto] lg:items-end">
+                                <div className="col-span-2 lg:col-span-1">
+                                    <label className={labelClass}>
+                                        Product
+                                    </label>
 
-                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                        Press Enter in an item field to add the line.
-                                    </p>
+                                    <input
+                                        ref={quickInputRef}
+                                        list="quick-product-list"
+                                        value={quick.search}
+                                        onChange={(event) =>
+                                            handleQuickProductChange(
+                                                event.target.value
+                                            )
+                                        }
+                                        onKeyDown={handleQuickKeyDown}
+                                        placeholder="Search or scan SKU, barcode or name..."
+                                        autoComplete="off"
+                                        className={inputClass}
+                                    />
+
+                                    <datalist id="quick-product-list">
+                                        {lookups.products
+                                            .filter(
+                                                (product) =>
+                                                    product.is_active
+                                            )
+                                            .map((product) => (
+                                                <option
+                                                    key={product.product_id}
+                                                    value={
+                                                        product.product_code
+                                                            ? `${product.product_code} - ${product.product_name}`
+                                                            : product.product_name
+                                                    }
+                                                />
+                                            ))}
+                                    </datalist>
                                 </div>
 
-                                {editingLineIndex !== null && (
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setEditingLineIndex(null);
-                                            setDraftLine(emptyItem());
-                                        }}
-                                        className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-white dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                                    >
-                                        Cancel Edit
-                                    </button>
-                                )}
-                            </div>
+                                <div>
+                                    <label className={labelClass}>
+                                        Quantity
+                                    </label>
 
-                            <div
-                                onKeyDown={handleLineKeyDown}
-                                className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6"
-                            >
-                                <label className={`${labelClass} xl:col-span-2`}>
-                                    Item Name *
-                                    <select
-                                        required
-                                        className={inputClass}
-                                        value={draftLine.product_id}
-                                        onChange={(event) => chooseProduct(event.target.value)}
-                                    >
-                                        <option value="">Select Item</option>
-
-                                        {lookups.products.map((product) => (
-                                            <option
-                                                key={product.product_id}
-                                                value={product.product_id}
-                                            >
-                                                {product.product_name}
-                                                {product.product_code
-                                                    ? ` (${product.product_code})`
-                                                    : ""}
-                                            </option>
-                                        ))}
-                                    </select>
-
-                                    <span className="mt-1 block text-xs font-normal text-slate-500">
-                                        {lookups.products.length} item(s) available
-                                    </span>
-                                </label>
-
-                                <label className={labelClass}>
-                                    Description
-                                    <input
-                                        className={inputClass}
-                                        value={draftLine.item_description}
-                                        onChange={(event) =>
-                                            changeDraftLine(
-                                                "item_description",
-                                                event.target.value
-                                            )
-                                        }
-                                        placeholder="Description"
-                                    />
-                                </label>
-
-                                <label className={labelClass}>
-                                    Item Balance
                                     <input
                                         type="number"
-                                        min="0"
-                                        step="1"
-                                        className={inputClass}
-                                        value={draftLine.item_balance}
+                                        min="0.01"
+                                        step="any"
+                                        value={quick.quantity}
                                         onChange={(event) =>
-                                            changeDraftLine(
-                                                "item_balance",
-                                                event.target.value
-                                            )
-                                        }
-                                    />
-                                </label>
-
-                                <label className={labelClass}>
-                                    UOM
-                                    <input
-                                        className={inputClass}
-                                        value={draftLine.uom}
-                                        onChange={(event) =>
-                                            changeDraftLine(
-                                                "uom",
-                                                event.target.value
-                                            )
-                                        }
-                                        placeholder="PCS"
-                                    />
-                                </label>
-
-                                <label className={labelClass}>
-                                    Quantity *
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        step="1"
-                                        className={inputClass}
-                                        value={draftLine.quantity}
-                                        onChange={(event) =>
-                                            changeDraftLine(
+                                            setQuickField(
                                                 "quantity",
                                                 event.target.value
                                             )
                                         }
+                                        onKeyDown={handleQuickKeyDown}
+                                        className={inputClass}
                                     />
-                                </label>
+                                </div>
 
-                                <label className={labelClass}>
-                                    Unit Price
+                                <div>
+                                    <label className={labelClass}>
+                                        Unit Price
+                                    </label>
+
                                     <input
                                         type="number"
                                         min="0"
-                                        step="1"
-                                        className={inputClass}
-                                        value={draftLine.unit_price}
+                                        step="any"
+                                        value={quick.unitPrice}
                                         onChange={(event) =>
-                                            changeDraftLine(
-                                                "unit_price",
+                                            setQuickField(
+                                                "unitPrice",
                                                 event.target.value
                                             )
                                         }
+                                        onKeyDown={handleQuickKeyDown}
+                                        className={inputClass}
                                     />
-                                </label>
+                                </div>
 
-                                <label className={labelClass}>
-                                    Tax Rate (%)
+                                <div>
+                                    <label className={labelClass}>
+                                        Tax (%)
+                                    </label>
+
                                     <input
                                         type="number"
                                         min="0"
-                                        step="1"
-                                        className={inputClass}
-                                        value={draftLine.tax_rate}
+                                        step="any"
+                                        value={quick.tax}
                                         onChange={(event) =>
-                                            changeDraftLine(
-                                                "tax_rate",
+                                            setQuickField(
+                                                "tax",
                                                 event.target.value
                                             )
                                         }
+                                        onKeyDown={handleQuickKeyDown}
+                                        className={inputClass}
                                     />
-                                </label>
+                                </div>
 
-                                <label className={labelClass}>
-                                    Tax Code
-                                    <input
-                                        className={inputClass}
-                                        value={draftLine.tax_code}
-                                        onChange={(event) =>
-                                            changeDraftLine(
-                                                "tax_code",
-                                                event.target.value
-                                            )
-                                        }
-                                        placeholder="Tax code"
-                                    />
-                                </label>
+                                <div>
+                                    <label className={labelClass}>
+                                        Line Total
+                                    </label>
 
-                                <label className={`${labelClass} sm:col-span-2 lg:col-span-3`}>
-                                    Line Memo
-                                    <input
-                                        className={inputClass}
-                                        value={draftLine.memo}
-                                        onChange={(event) =>
-                                            changeDraftLine(
-                                                "memo",
-                                                event.target.value
-                                            )
-                                        }
-                                        placeholder="Optional line memo"
-                                    />
-                                </label>
+                                    <div className="mt-1.5 flex h-[42px] items-center justify-end rounded-xl border border-slate-200 bg-slate-100 px-3 text-sm font-bold tabular-nums text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                                        {form.currency}{" "}
+                                        {formatNumber(
+                                            calculateLineTotal({
+                                                quantity: quick.quantity,
+                                                unitPrice: quick.unitPrice,
+                                                tax: quick.tax,
+                                            })
+                                        )}
+                                    </div>
+                                </div>
 
                                 <button
                                     type="button"
-                                    onClick={addLine}
-                                    className="min-h-[44px] rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 active:scale-[0.98]"
+                                    onClick={addQuickItem}
+                                    className="col-span-2 flex h-[42px] items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 lg:col-span-1"
                                 >
-                                    {editingLineIndex !== null
-                                        ? "✓ Update Line"
-                                        : "+ Add Line"}
+                                    <span className="text-lg leading-none">
+                                        +
+                                    </span>
+                                    Add
                                 </button>
                             </div>
 
-                            {/* Live draft amount */}
-                            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/70 px-4 py-3 dark:border-blue-900/50 dark:bg-blue-950/30">
-                                <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">
-                                    Current line amount
-                                </span>
+                            {quickError && (
+                                <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">
+                                    {quickError}
+                                </p>
+                            )}
+                        </div>
 
-                                <div className="flex flex-wrap gap-5 text-sm">
-                                    <span>
-                                        Amount:{" "}
-                                        <strong>
-                                            {formatNumber(
-                                                Number(draftLine.quantity || 0) *
-                                                Number(draftLine.unit_price || 0)
-                                            )}
-                                        </strong>
-                                    </span>
+                        {/* ITEMS TOOLBAR */}
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                {lines.length} item
+                                {lines.length === 1 ? "" : "s"} added
+                            </p>
 
-                                    <span>
-                                        Tax:{" "}
-                                        <strong>
-                                            {formatNumber(
-                                                (Number(draftLine.quantity || 0) *
-                                                    Number(draftLine.unit_price || 0) *
-                                                    Number(draftLine.tax_rate || 0)) /
-                                                100
-                                            )}
-                                        </strong>
-                                    </span>
+                            <div
+                                className="relative"
+                                ref={columnsMenuRef}
+                            >
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setColumnsOpen((previous) => !previous)
+                                    }
+                                    className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+                                >
+                                    Columns
+                                </button>
 
-                                    <span className="text-blue-700 dark:text-blue-300">
-                                        Gross:{" "}
-                                        <strong>
-                                            {formatNumber(
-                                                Number(draftLine.quantity || 0) *
-                                                Number(draftLine.unit_price || 0) *
-                                                (1 +
-                                                    Number(draftLine.tax_rate || 0) /
-                                                    100)
-                                            )}
-                                        </strong>
-                                    </span>
-                                </div>
+                                {columnsOpen && (
+                                    <div className="absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+                                        <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+                                            <span className="font-bold text-slate-800 dark:text-white">
+                                                Show / Hide Columns
+                                            </span>
+
+                                            <button
+                                                type="button"
+                                                onClick={showAllColumns}
+                                                className="text-xs font-bold text-blue-600"
+                                            >
+                                                Show All
+                                            </button>
+                                        </div>
+
+                                        <div className="mt-2 max-h-72 space-y-1 overflow-y-auto">
+                                            {LINE_COLUMNS.map((column) => (
+                                                <label
+                                                    key={column.key}
+                                                    className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={Boolean(
+                                                            visibleColumns[column.key]
+                                                        )}
+                                                        onChange={() =>
+                                                            toggleColumn(column.key)
+                                                        }
+                                                        className="h-4 w-4 rounded"
+                                                    />
+
+                                                    {column.label}
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
-                        {/* Added transaction lines */}
-                        <div className="p-4 sm:p-5">
-                            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                                <div>
-                                    <h3 className="font-bold">
-                                        Added Transaction Lines
-                                    </h3>
+                        {/* EDITABLE PRODUCT TABLE */}
+                        <div className="w-full overflow-x-auto rounded-2xl border border-slate-200 [scrollbar-width:thin] dark:border-slate-700">
+                            <table className="w-full min-w-max text-sm">
+                                <thead className="bg-slate-50 dark:bg-slate-800">
+                                    <tr>
+                                        {visibleLineColumns.map((column) => (
+                                            <th
+                                                key={column.key}
+                                                className={`whitespace-nowrap px-4 py-3 font-bold text-slate-500 dark:text-slate-300 ${
+                                                    column.key === "amount" ||
+                                                    column.key === "tax_amount" ||
+                                                    column.key === "gross_amount"
+                                                        ? "text-right"
+                                                        : "text-left"
+                                                }`}
+                                            >
+                                                {column.label}
+                                            </th>
+                                        ))}
 
-                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                        Items added here will be included when you save the challan.
-                                    </p>
-                                </div>
+                                        <th className="sticky right-0 bg-slate-50 px-4 py-3 text-center font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                                            Action
+                                        </th>
+                                    </tr>
+                                </thead>
 
-                                <span className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                                    {lines.length} line(s)
-                                </span>
-                            </div>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {calculatedLines.map((line, index) => (
+                                        <tr
+                                            key={`${line.product_id}-${index}`}
+                                            className="hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                                        >
+                                            {visibleLineColumns.map((column) => {
+                                                const key = column.key;
 
-                            {lines.length === 0 ? (
-                                <div className="rounded-2xl border-2 border-dashed border-slate-200 px-5 py-12 text-center dark:border-slate-700">
-                                    <div className="text-3xl">▤</div>
+                                                let cell;
 
-                                    <p className="mt-3 font-bold text-slate-700 dark:text-slate-200">
-                                        No transaction lines added
-                                    </p>
+                                                if (key === "number") {
+                                                    cell = (
+                                                        <span className="font-semibold text-slate-500">
+                                                            {index + 1}
+                                                        </span>
+                                                    );
+                                                } else if (key === "item_name") {
+                                                    cell = (
+                                                        <select
+                                                            value={line.product_id}
+                                                            onChange={(event) =>
+                                                                updateLine(
+                                                                    index,
+                                                                    "product_id",
+                                                                    event.target.value
+                                                                )
+                                                            }
+                                                            className="min-w-[230px] rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                                            required
+                                                        >
+                                                            <option value="">
+                                                                Select Product
+                                                            </option>
 
-                                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                                        Enter an item above and press Add Line or Enter.
-                                    </p>
-                                </div>
-                            ) : (
-                                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-                                    <table className="w-full min-w-max text-left text-sm">
-                                        <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-600 dark:bg-slate-950 dark:text-slate-400">
-                                            <tr>
-                                                {visibleLineColumns.map((column) => (
-                                                    <th
-                                                        key={column.key}
-                                                        className="whitespace-nowrap px-4 py-3"
-                                                    >
-                                                        {column.label}
-                                                    </th>
-                                                ))}
+                                                            {lookups.products
+                                                                .filter(
+                                                                    (product) =>
+                                                                        product.is_active ||
+                                                                        String(product.product_id) === String(line.product_id)
+                                                                )
+                                                                .map((product) => (
+                                                                    <option
+                                                                        key={product.product_id}
+                                                                        value={product.product_id}
+                                                                    >
+                                                                        {product.product_code
+                                                                            ? `${product.product_code} - ${product.product_name}`
+                                                                            : product.product_name}
+                                                                    </option>
+                                                                ))}
+                                                        </select>
+                                                    );
+                                                } else if (
+                                                    [
+                                                        "quantity",
+                                                        "unit_price",
+                                                        "tax_rate",
+                                                        "item_balance",
+                                                    ].includes(key)
+                                                ) {
+                                                    cell = (
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            step="any"
+                                                            value={line[key] ?? 0}
+                                                            onChange={(event) =>
+                                                                updateLine(
+                                                                    index,
+                                                                    key,
+                                                                    event.target.value
+                                                                )
+                                                            }
+                                                            className="min-w-[105px] rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                                            required={
+                                                                key === "quantity"
+                                                            }
+                                                        />
+                                                    );
+                                                } else if (
+                                                    [
+                                                        "item_description",
+                                                        "uom",
+                                                        "tax_code",
+                                                        "memo",
+                                                    ].includes(key)
+                                                ) {
+                                                    cell = (
+                                                        <input
+                                                            type="text"
+                                                            value={line[key] ?? ""}
+                                                            onChange={(event) =>
+                                                                updateLine(
+                                                                    index,
+                                                                    key,
+                                                                    event.target.value
+                                                                )
+                                                            }
+                                                            className="min-w-[125px] rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                                        />
+                                                    );
+                                                } else if (
+                                                    [
+                                                        "amount",
+                                                        "tax_amount",
+                                                        "gross_amount",
+                                                    ].includes(key)
+                                                ) {
+                                                    cell = (
+                                                        <span className="whitespace-nowrap font-bold tabular-nums text-slate-800 dark:text-slate-100">
+                                                            {formatNumber(line[key])}
+                                                        </span>
+                                                    );
+                                                }
 
-                                                <th className="sticky right-0 whitespace-nowrap bg-slate-100 px-4 py-3 text-right dark:bg-slate-950">
-                                                    Actions
-                                                </th>
-                                            </tr>
-                                        </thead>
-
-                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                            {calculatedLines.map((line, index) => (
-                                                <tr
-                                                    key={`${line.product_id || "item"}-${index}`}
-                                                    className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50"
-                                                >
-                                                    {visibleLineColumns.map((column) => {
-                                                        let value = line[column.key];
-
-                                                        if (column.key === "number") {
-                                                            value = index + 1;
-                                                        } else if (
+                                                return (
+                                                    <td
+                                                        key={key}
+                                                        className={`whitespace-nowrap px-3 py-3 ${
                                                             [
                                                                 "amount",
                                                                 "tax_amount",
                                                                 "gross_amount",
-                                                                "unit_price",
-                                                            ].includes(column.key)
-                                                        ) {
-                                                            value = formatNumber(value);
-                                                        } else if (
-                                                            column.key === "quantity" ||
-                                                            column.key === "item_balance" ||
-                                                            column.key === "tax_rate"
-                                                        ) {
-                                                            value = Number(value || 0).toLocaleString(
-                                                                "en-PK",
-                                                                {
-                                                                    maximumFractionDigits: 3,
-                                                                }
-                                                            );
-                                                        }
-
-                                                        return (
-                                                            <td
-                                                                key={column.key}
-                                                                className={`max-w-64 px-4 py-3 ${[
-                                                                    "item_name",
-                                                                    "gross_amount",
-                                                                ].includes(column.key)
-                                                                    ? "font-bold text-slate-800 dark:text-slate-100"
-                                                                    : "text-slate-600 dark:text-slate-300"
-                                                                    } ${column.key === "gross_amount"
-                                                                        ? "text-blue-700 dark:text-blue-400"
-                                                                        : ""
-                                                                    }`}
-                                                            >
-                                                                <span className="block min-w-0 break-words">
-                                                                    {value === null ||
-                                                                        value === undefined ||
-                                                                        value === ""
-                                                                        ? "—"
-                                                                        : value}
-                                                                </span>
-                                                            </td>
-                                                        );
-                                                    })}
-
-                                                    <td className="sticky right-0 whitespace-nowrap bg-white px-4 py-3 text-right dark:bg-slate-900">
-                                                        <div className="flex justify-end gap-2">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => editLine(index)}
-                                                                className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 dark:bg-blue-950/50 dark:text-blue-300"
-                                                            >
-                                                                Edit
-                                                            </button>
-
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => removeLine(index)}
-                                                                className="rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300"
-                                                            >
-                                                                Remove
-                                                            </button>
-                                                        </div>
+                                                            ].includes(key)
+                                                                ? "text-right"
+                                                                : ""
+                                                        }`}
+                                                    >
+                                                        {cell}
                                                     </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
+                                                );
+                                            })}
 
-                                        <tfoot className="bg-slate-50 dark:bg-slate-950">
-                                            <tr>
-                                                <td
-                                                    colSpan={
-                                                        Math.max(
-                                                            visibleLineColumns.length,
-                                                            1
-                                                        ) + 1
-                                                    }
-                                                    className="px-4 py-3 text-right"
+                                            <td className="sticky right-0 bg-white px-3 py-3 text-center dark:bg-slate-900">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeLine(index)}
+                                                    className="rounded-lg px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/50"
                                                 >
-                                                    <span className="mr-3 text-sm font-bold text-slate-500">
-                                                        Lines Gross Total
-                                                    </span>
+                                                    Remove
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
 
-                                                    <span className="text-base font-black text-blue-700 dark:text-blue-400">
-                                                        {form.currency}{" "}
-                                                        {formatNumber(grossAmount)}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        </tfoot>
-                                    </table>
-                                </div>
-                            )}
+                                    {!lines.length && (
+                                        <tr>
+                                            <td
+                                                colSpan={
+                                                    visibleLineColumns.length + 1
+                                                }
+                                                className="px-4 py-12 text-center"
+                                            >
+                                                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl text-slate-400 dark:bg-slate-800 dark:text-slate-500">
+                                                    +
+                                                </div>
+
+                                                <p className="mt-3 font-semibold text-slate-700 dark:text-slate-200">
+                                                    No products added
+                                                </p>
+
+                                                <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">
+                                                    Use the product field above to add your first product.
+                                                </p>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+
+                                <tfoot className="bg-slate-50 dark:bg-slate-950">
+                                    <tr>
+                                        <td
+                                            colSpan={
+                                                visibleLineColumns.length + 1
+                                            }
+                                            className="px-4 py-4 text-right"
+                                        >
+                                            <span className="mr-3 text-sm font-bold text-slate-500 dark:text-slate-400">
+                                                Lines Gross Total
+                                            </span>
+
+                                            <span className="text-base font-black text-blue-700 dark:text-blue-400">
+                                                {form.currency}{" "}
+                                                {formatNumber(grossAmount)}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
                         </div>
-                    </>
+                    </div>
                 ) : (
                     <div className="p-8">
                         <h3 className="text-lg font-bold">
@@ -1518,12 +1600,18 @@ export default function DeliveryChallanForm({ challanId = null }) {
                 )}
             </section>
 
-            {/* Summary */}
+            {/* TRANSACTION SUMMARY */}
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h2 className="text-lg font-bold">
-                        Transaction Summary
-                    </h2>
+                    <div>
+                        <h2 className="text-lg font-bold">
+                            Transaction Summary
+                        </h2>
+
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            Review the total amount and tax before saving.
+                        </p>
+                    </div>
 
                     <span className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
                         {lines.length} item(s)
@@ -1544,7 +1632,7 @@ export default function DeliveryChallanForm({ challanId = null }) {
                                 {label}
                             </p>
 
-                            <p className="mt-2 break-words text-2xl font-black">
+                            <p className="mt-2 break-words text-2xl font-black text-slate-900 dark:text-white">
                                 {form.currency} {formatNumber(value)}
                             </p>
                         </div>
@@ -1552,7 +1640,7 @@ export default function DeliveryChallanForm({ challanId = null }) {
                 </div>
             </section>
 
-            {/* Footer */}
+            {/* FOOTER */}
             <footer className="sticky bottom-3 z-10 flex flex-wrap justify-between gap-3 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
                 <Link
                     href="/dashboard/delivery-challans"

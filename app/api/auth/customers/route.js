@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 
@@ -11,6 +12,7 @@ export async function GET() {
         c.phone,
         c.email,
         c.address,
+        c.receivable_account_id,
         c.opening_balance,
         c.credit_limit,
         c.is_active,
@@ -74,6 +76,7 @@ export async function POST(request) {
       phone,
       email,
       address,
+      receivableAccountId,
       openingBalance,
       creditLimit,
       isActive,
@@ -89,6 +92,16 @@ export async function POST(request) {
       );
     }
 
+    if (!receivableAccountId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Receivable account is required.",
+        },
+        { status: 400 }
+      );
+    }
+
     const result = await pool.query(
       `
       INSERT INTO customers (
@@ -97,11 +110,12 @@ export async function POST(request) {
         phone,
         email,
         address,
+        receivable_account_id,
         opening_balance,
         credit_limit,
         is_active
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
       RETURNING *
       `,
       [
@@ -110,6 +124,7 @@ export async function POST(request) {
         phone || null,
         email || null,
         address || null,
+        Number(receivableAccountId),
         Number(openingBalance) || 0,
         Number(creditLimit) || 0,
         isActive !== false,

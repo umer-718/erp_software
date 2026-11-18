@@ -77,7 +77,7 @@ const emptyForm = () => ({
     memo: "",
     termsConditions: "",
     remarks: "",
-    items: [emptyItem()],
+    items: [],
 });
 
 function money(value) {
@@ -285,6 +285,9 @@ export default function PurchaseOrdersPage() {
 
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [form, setForm] = useState(emptyForm());
+
+    const [newItem, setNewItem] = useState(emptyItem());
+    const [itemError, setItemError] = useState("");
 
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("ALL");
@@ -585,50 +588,93 @@ export default function PurchaseOrdersPage() {
     // ADD ITEM
     // --------------------------------------------------
 
-    const addItem = () => {
-        const allowed =
-            mode === "create" ? canCreate : canUpdate;
+    // --------------------------------------------------
+    // QUICK ITEM ENTRY
+    // --------------------------------------------------
 
-        if (!allowed) {
-            setError(
-                mode === "create"
-                    ? "You do not have permission to create Purchase Orders."
-                    : "You do not have permission to update Purchase Orders."
-            );
-            return;
-        }
-
-        setForm((current) => ({
+    const updateNewItem = (field, value) => {
+        setNewItem((current) => ({
             ...current,
-            items: [...current.items, emptyItem()],
+            [field]: value,
         }));
+
+        setItemError("");
     };
 
-    // --------------------------------------------------
-    // REMOVE ITEM
-    // --------------------------------------------------
+    const selectNewProduct = (productId) => {
+        const product = products.find(
+            (item) =>
+                String(item.product_id ?? item.id) === String(productId)
+        );
+
+        setNewItem((current) => ({
+            ...current,
+            productId,
+            itemDescription:
+                product?.product_name ||
+                product?.name ||
+                current.itemDescription,
+            uom:
+                product?.unit ||
+                product?.uom ||
+                current.uom,
+        }));
+
+        setItemError("");
+    };
+
+    const addItem = () => {
+        if (!canModifyCurrentForm) {
+            setItemError("You do not have permission to add items.");
+            return;
+        }
+
+        if (!newItem.productId) {
+            setItemError("Please select a product.");
+            return;
+        }
+
+        if (!newItem.itemDescription.trim()) {
+            setItemError("Please enter the item description.");
+            return;
+        }
+
+        if (number(newItem.quantity) <= 0) {
+            setItemError("Quantity must be greater than zero.");
+            return;
+        }
+
+        if (number(newItem.unitPrice) < 0) {
+            setItemError("Unit price cannot be negative.");
+            return;
+        }
+
+        const preparedItem = calculateItem({
+            ...newItem,
+            quantity: String(number(newItem.quantity)),
+            unitPrice: String(number(newItem.unitPrice)),
+        });
+
+        setForm((current) => ({
+            ...current,
+            items: [...current.items, preparedItem],
+        }));
+
+        setNewItem(emptyItem());
+        setItemError("");
+    };
 
     const removeItem = (index) => {
-        const allowed =
-            mode === "create" ? canCreate : canUpdate;
-
-        if (!allowed) {
-            setError(
-                mode === "create"
-                    ? "You do not have permission to create Purchase Orders."
-                    : "You do not have permission to update Purchase Orders."
-            );
+        if (!canModifyCurrentForm) {
+            setError("You do not have permission to remove items.");
             return;
         }
 
         setForm((current) => ({
             ...current,
-            items:
-                current.items.length > 1
-                    ? current.items.filter(
-                        (_, itemIndex) => itemIndex !== index
-                    )
-                    : [emptyItem()],
+            items: current.items.filter(
+                (_, itemIndex) => itemIndex !== index
+            ),
         }));
     };
 
@@ -688,6 +734,8 @@ export default function PurchaseOrdersPage() {
         setSuccess("");
         setSelectedOrder(null);
         setForm(emptyForm());
+        setNewItem(emptyItem());
+        setItemError("");
         setMode("create");
         setScreen("form");
     };
@@ -769,12 +817,10 @@ export default function PurchaseOrdersPage() {
                 memo: order.memo,
                 termsConditions: order.termsConditions,
                 remarks: order.remarks,
-                items:
-                    order.items.length > 0
-                        ? order.items
-                        : [emptyItem()],
+                items: order.items || [],
             });
-
+            setNewItem(emptyItem());
+            setItemError("");
             setMode(requestedMode);
             setScreen("form");
         } catch (err) {
@@ -2145,7 +2191,7 @@ export default function PurchaseOrdersPage() {
                                                     sourceType: value,
                                                     purchaseQuotationId: "",
                                                     supplierId: "",
-                                                    items: [emptyItem()],
+                                                    items: [],
                                                 }));
                                             }}
                                             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-950"
@@ -2341,311 +2387,516 @@ export default function PurchaseOrdersPage() {
                     </div>
 
                     {/* TRANSACTION LINES */}
-                    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                        <div className="flex flex-col justify-between gap-3 border-b border-slate-200 p-5 dark:border-slate-800 md:flex-row md:items-center">
-                            <div>
-                                <h3 className="font-semibold">
-                                    Transaction Lines
-                                </h3>
+<div className="space-y-5">
 
-                                <p className="text-xs text-slate-500">
-                                    Items, quantities, unit prices, discounts and taxes
-                                </p>
-                            </div>
+    {/* QUICK ADD ITEM */}
+    {!isReadOnly && canModifyCurrentForm && (
+        <section className="overflow-hidden rounded-xl border border-blue-200 bg-white shadow-sm dark:border-blue-900 dark:bg-slate-900">
 
-                            {!isReadOnly && canModifyCurrentForm && (
-                                <button
-                                    onClick={addItem}
-                                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-                                >
-                                    <PlusCircle size={16} />
-                                    Add Item
-                                </button>
-                            )}
-                        </div>
+            <div className="flex flex-col justify-between gap-3 border-b border-blue-100 bg-blue-50/70 p-5 dark:border-blue-900 dark:bg-blue-950/30 sm:flex-row sm:items-center">
+                <div>
+                    <h3 className="font-bold text-slate-900 dark:text-white">
+                        Add Purchase Order Item
+                    </h3>
 
-                        <div className="overflow-x-auto">
-                            <table className="w-full min-w-[1550px] text-left text-xs">
-                                <thead className="bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                                    <tr>
-                                        <th className="px-3 py-3">Item Name</th>
-                                        <th className="px-3 py-3">Item Description</th>
-                                        <th className="px-3 py-3">Item Balance</th>
-                                        <th className="px-3 py-3">UOM</th>
-                                        <th className="px-3 py-3">Quantity</th>
-                                        <th className="px-3 py-3">Retail Price</th>
-                                        <th className="px-3 py-3">Discount %</th>
-                                        <th className="px-3 py-3">Unit Price</th>
-                                        <th className="px-3 py-3">Amount</th>
-                                        <th className="px-3 py-3">Tax Code</th>
-                                        <th className="px-3 py-3">Tax Amount</th>
-                                        <th className="px-3 py-3">Gross Amount</th>
-                                        <th className="px-3 py-3">Memo</th>
-                                        <th className="px-3 py-3">Item Weight</th>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        Select a product, enter its details and add it to the Purchase Order.
+                    </p>
+                </div>
 
-                                        {!isReadOnly && canModifyCurrentForm && (
-                                            <th className="px-3 py-3">
-                                                Action
-                                            </th>
-                                        )}
-                                    </tr>
-                                </thead>
+                <span className="w-fit rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                    Quick Item Entry
+                </span>
+            </div>
 
-                                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                                    {calculatedItems.map((item, index) => {
-                                        const amount =
-                                            number(item.quantity) *
-                                            number(item.unitPrice);
+            <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4">
 
-                                        return (
-                                            <tr key={index}>
-                                                <td className="min-w-[190px] px-2 py-2">
-                                                    {isReadOnly ? (
-                                                        <span>
-                                                            {item.itemDescription}
-                                                        </span>
-                                                    ) : (
-                                                        <select
-                                                            disabled={!canModifyCurrentForm}
-                                                            value={item.productId}
-                                                            onChange={(event) =>
-                                                                selectProduct(
-                                                                    index,
-                                                                    event.target.value
-                                                                )
-                                                            }
-                                                            className="w-full rounded border border-slate-300 bg-white px-2 py-2 disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:disabled:bg-slate-800"
-                                                        >
-                                                            <option value="">
-                                                                Select Item
-                                                            </option>
+                {/* PRODUCT */}
+                <div className="sm:col-span-2">
+                    <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        Item / Product *
+                    </label>
 
-                                                            {products.map((product) => {
-                                                                const id =
-                                                                    product.product_id ??
-                                                                    product.id;
+                    <select
+                        value={newItem.productId}
+                        onChange={(event) =>
+                            selectNewProduct(event.target.value)
+                        }
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+                    >
+                        <option value="">Select Product</option>
 
-                                                                return (
-                                                                    <option
-                                                                        key={id}
-                                                                        value={id}
-                                                                    >
-                                                                        {product.product_name ||
-                                                                            product.name ||
-                                                                            product.sku ||
-                                                                            `Product ${id}`}
-                                                                    </option>
-                                                                );
-                                                            })}
-                                                        </select>
-                                                    )}
-                                                </td>
+                        {products.map((product) => {
+                            const id =
+                                product.product_id ?? product.id;
 
-                                                <td className="min-w-[190px] px-2 py-2">
-                                                    <input
-                                                        disabled={isReadOnly || !canModifyCurrentForm}
-                                                        value={item.itemDescription}
-                                                        onChange={(event) =>
-                                                            updateItem(
-                                                                index,
-                                                                "itemDescription",
-                                                                event.target.value
-                                                            )
-                                                        }
-                                                        placeholder="Description"
-                                                        className="w-full rounded border border-slate-300 bg-white px-2 py-2 disabled:border-transparent disabled:bg-transparent dark:border-slate-700 dark:bg-slate-950"
-                                                    />
-                                                </td>
+                            return (
+                                <option key={id} value={id}>
+                                    {product.sku
+                                        ? `${product.sku} - `
+                                        : ""}
+                                    {product.product_name ||
+                                        product.name ||
+                                        `Product ${id}`}
+                                </option>
+                            );
+                        })}
+                    </select>
+                </div>
 
-                                                <td className="px-2 py-2">
-                                                    <input
-                                                        disabled
-                                                        value={item.itemBalance}
-                                                        placeholder="-"
-                                                        className="w-20 rounded border border-slate-200 bg-slate-100 px-2 py-2 dark:border-slate-700 dark:bg-slate-800"
-                                                    />
-                                                </td>
+                {/* QUANTITY */}
+                <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        Quantity *
+                    </label>
 
-                                                <td className="px-2 py-2">
-                                                    <input
-                                                        disabled={isReadOnly || !canModifyCurrentForm}
-                                                        value={item.uom}
-                                                        onChange={(event) =>
-                                                            updateItem(
-                                                                index,
-                                                                "uom",
-                                                                event.target.value
-                                                            )
-                                                        }
-                                                        className="w-20 rounded border border-slate-300 bg-white px-2 py-2 disabled:border-transparent disabled:bg-transparent dark:border-slate-700 dark:bg-slate-950"
-                                                    />
-                                                </td>
+                    <input
+                        type="number"
+                        min="0.001"
+                        step="any"
+                        value={newItem.quantity}
+                        onChange={(event) =>
+                            updateNewItem("quantity", event.target.value)
+                        }
+                        placeholder="Enter quantity"
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+                    />
+                </div>
 
-                                                <td className="px-2 py-2">
-                                                    <input
-                                                        type="number"
-                                                        min="1"
-                                                        step="1"
-                                                        disabled={isReadOnly || !canModifyCurrentForm}
-                                                        value={item.quantity}
-                                                        onChange={(event) =>
-                                                            updateItem(
-                                                                index,
-                                                                "quantity",
-                                                                event.target.value
-                                                            )
-                                                        }
-                                                        className="w-24 rounded border border-slate-300 bg-white px-2 py-2 disabled:border-transparent disabled:bg-transparent dark:border-slate-700 dark:bg-slate-950"
-                                                    />
-                                                </td>
+                {/* UOM */}
+                <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        Unit of Measure
+                    </label>
 
-                                                <td className="px-2 py-2">
-                                                    <input
-                                                        type="number"
-                                                        disabled
-                                                        value={item.retailPrice}
-                                                        className="w-24 rounded border border-slate-200 bg-slate-100 px-2 py-2 dark:border-slate-700 dark:bg-slate-800"
-                                                    />
-                                                </td>
+                    <input
+                        value={newItem.uom}
+                        onChange={(event) =>
+                            updateNewItem("uom", event.target.value)
+                        }
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+                    />
+                </div>
 
-                                                <td className="px-2 py-2">
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        disabled={isReadOnly || !canModifyCurrentForm}
-                                                        value={item.discountPercent}
-                                                        onChange={(event) =>
-                                                            updateItem(
-                                                                index,
-                                                                "discountPercent",
-                                                                event.target.value
-                                                            )
-                                                        }
-                                                        className="w-20 rounded border border-slate-300 bg-white px-2 py-2 disabled:border-transparent disabled:bg-transparent dark:border-slate-700 dark:bg-slate-950"
-                                                    />
-                                                </td>
+                {/* DESCRIPTION */}
+                <div className="sm:col-span-2">
+                    <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        Item Description *
+                    </label>
 
-                                                <td className="px-2 py-2">
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        step="1"
-                                                        disabled={isReadOnly || !canModifyCurrentForm}
-                                                        value={item.unitPrice}
-                                                        onChange={(event) =>
-                                                            updateItem(
-                                                                index,
-                                                                "unitPrice",
-                                                                event.target.value
-                                                            )
-                                                        }
-                                                        className="w-28 rounded border border-slate-300 bg-white px-2 py-2 disabled:border-transparent disabled:bg-transparent dark:border-slate-700 dark:bg-slate-950"
-                                                    />
-                                                </td>
+                    <input
+                        value={newItem.itemDescription}
+                        onChange={(event) =>
+                            updateNewItem(
+                                "itemDescription",
+                                event.target.value
+                            )
+                        }
+                        placeholder="Enter item description"
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+                    />
+                </div>
 
-                                                <td className="whitespace-nowrap px-3 py-2 text-right font-medium">
-                                                    {money(amount)}
-                                                </td>
+                {/* RETAIL PRICE */}
+                <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        Retail Price
+                    </label>
 
-                                                <td className="px-2 py-2">
-                                                    <input
-                                                        disabled
-                                                        value={item.taxCode}
-                                                        placeholder="-"
-                                                        className="w-20 rounded border border-slate-200 bg-slate-100 px-2 py-2 dark:border-slate-700 dark:bg-slate-800"
-                                                    />
-                                                </td>
+                    <input
+                        type="number"
+                        min="0"
+                        value={newItem.retailPrice}
+                        onChange={(event) =>
+                            updateNewItem("retailPrice", event.target.value)
+                        }
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+                    />
+                </div>
 
-                                                <td className="whitespace-nowrap px-3 py-2 text-right">
-                                                    {money(item.taxAmount)}
-                                                </td>
+                {/* DISCOUNT */}
+                <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        Discount %
+                    </label>
 
-                                                <td className="whitespace-nowrap px-3 py-2 text-right font-semibold">
-                                                    {money(item.lineTotal)}
-                                                </td>
+                    <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={newItem.discountPercent}
+                        onChange={(event) =>
+                            updateNewItem(
+                                "discountPercent",
+                                event.target.value
+                            )
+                        }
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+                    />
+                </div>
 
-                                                <td className="px-2 py-2">
-                                                    <input
-                                                        disabled={isReadOnly || !canModifyCurrentForm}
-                                                        value={item.remarks}
-                                                        onChange={(event) =>
-                                                            updateItem(
-                                                                index,
-                                                                "remarks",
-                                                                event.target.value
-                                                            )
-                                                        }
-                                                        className="w-28 rounded border border-slate-300 bg-white px-2 py-2 disabled:border-transparent disabled:bg-transparent dark:border-slate-700 dark:bg-slate-950"
-                                                    />
-                                                </td>
+                {/* UNIT PRICE */}
+                <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        Unit Price *
+                    </label>
 
-                                                <td className="px-2 py-2">
-                                                    <input
-                                                        disabled
-                                                        value={item.itemWeight}
-                                                        placeholder="-"
-                                                        className="w-20 rounded border border-slate-200 bg-slate-100 px-2 py-2 dark:border-slate-700 dark:bg-slate-800"
-                                                    />
-                                                </td>
+                    <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={newItem.unitPrice}
+                        onChange={(event) =>
+                            updateNewItem("unitPrice", event.target.value)
+                        }
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+                    />
+                </div>
 
-                                                {!isReadOnly && canModifyCurrentForm && (
-                                                    <td className="px-2 py-2">
-                                                        <button
-                                                            onClick={() =>
-                                                                removeItem(index)
-                                                            }
-                                                            title="Remove item"
-                                                            className="rounded p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                                                        >
-                                                            <Trash2 size={15} />
-                                                        </button>
-                                                    </td>
-                                                )}
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
+                {/* TAX RATE */}
+                <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        Tax Rate %
+                    </label>
 
-                        <div className="border-t border-slate-200 p-4 dark:border-slate-800">
-                            <div className="ml-auto max-w-sm space-y-2 text-sm">
-                                <div className="flex justify-between">
-                                    <span className="text-slate-500">
-                                        Subtotal
-                                    </span>
+                    <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={newItem.taxRate}
+                        onChange={(event) =>
+                            updateNewItem("taxRate", event.target.value)
+                        }
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+                    />
+                </div>
 
-                                    <strong>{money(totals.subtotal)}</strong>
-                                </div>
+                {/* MEMO */}
+                <div className="sm:col-span-2 xl:col-span-4">
+                    <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        Line Memo
+                    </label>
 
-                                <div className="flex justify-between">
-                                    <span className="text-slate-500">
-                                        Discount
-                                    </span>
+                    <input
+                        value={newItem.remarks}
+                        onChange={(event) =>
+                            updateNewItem("remarks", event.target.value)
+                        }
+                        placeholder="Optional item memo"
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+                    />
+                </div>
+            </div>
 
-                                    <strong>{money(totals.discountAmount)}</strong>
-                                </div>
+            {itemError && (
+                <div className="mx-5 mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+                    {itemError}
+                </div>
+            )}
 
-                                <div className="flex justify-between">
-                                    <span className="text-slate-500">
-                                        Tax Amount
-                                    </span>
+            <div className="flex flex-col justify-between gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/40 sm:flex-row sm:items-center">
+                <p className="text-xs text-slate-500">
+                    Add the current item to the Purchase Order items table.
+                </p>
 
-                                    <strong>{money(totals.taxAmount)}</strong>
-                                </div>
+                <button
+                    type="button"
+                    onClick={addItem}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                    <PlusCircle size={17} />
+                    Add Item
+                </button>
+            </div>
+        </section>
+    )}
 
-                                <div className="flex justify-between border-t border-slate-200 pt-3 text-base dark:border-slate-700">
-                                    <span className="font-semibold">
-                                        Gross Amount
-                                    </span>
+    {/* ITEM SUMMARY */}
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
 
-                                    <strong className="text-blue-700 dark:text-blue-400">
-                                        {form.currencyCode} {money(totals.grandTotal)}
-                                    </strong>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+        <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/30">
+            <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                Item Lines
+            </p>
+
+            <p className="mt-1 text-2xl font-extrabold text-blue-800 dark:text-blue-200">
+                {form.items.length}
+            </p>
+        </div>
+
+        <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950/30">
+            <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                Total Quantity
+            </p>
+
+            <p className="mt-1 text-2xl font-extrabold text-emerald-800 dark:text-emerald-200">
+                {formatNumber(
+                    form.items.reduce(
+                        (sum, item) => sum + number(item.quantity),
+                        0
+                    )
+                )}
+            </p>
+        </div>
+
+        <div className="rounded-xl border border-amber-100 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/30">
+            <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                Gross Amount
+            </p>
+
+            <p className="mt-1 text-xl font-extrabold text-amber-800 dark:text-amber-200">
+                {form.currencyCode} {money(totals.grandTotal)}
+            </p>
+        </div>
+    </div>
+
+    {/* ADDED ITEMS TABLE */}
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+
+        <div className="flex flex-col justify-between gap-2 border-b border-slate-200 p-5 dark:border-slate-800 sm:flex-row sm:items-center">
+            <div>
+                <h3 className="font-bold text-slate-900 dark:text-white">
+                    Added Purchase Order Items
+                </h3>
+
+                <p className="mt-1 text-xs text-slate-500">
+                    Review the items added to this Purchase Order.
+                </p>
+            </div>
+
+            <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                {form.items.length} Items
+            </span>
+        </div>
+
+        <div className="overflow-x-auto">
+            <table className="w-full min-w-[1450px] text-left text-xs">
+
+                <thead className="bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                    <tr>
+                        {[
+                            "Item Name",
+                            "Description",
+                            "Item Balance",
+                            "UOM",
+                            "Quantity",
+                            "Retail Price",
+                            "Discount %",
+                            "Unit Price",
+                            "Amount",
+                            "Tax Code",
+                            "Tax Amount",
+                            "Gross Amount",
+                            "Memo",
+                            "Item Weight",
+                            "Action",
+                        ].map((heading) => (
+                            <th key={heading} className="px-3 py-3">
+                                {heading}
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                    {calculatedItems.map((item, index) => {
+                        const amount =
+                            number(item.quantity) *
+                            number(item.unitPrice);
+
+                        return (
+                            <tr key={index}>
+                                <td className="min-w-[180px] px-2 py-2">
+                                    {item.itemDescription}
+                                </td>
+
+                                <td className="min-w-[180px] px-2 py-2">
+                                    <input
+                                        disabled={isReadOnly || !canModifyCurrentForm}
+                                        value={item.itemDescription}
+                                        onChange={(event) =>
+                                            updateItem(
+                                                index,
+                                                "itemDescription",
+                                                event.target.value
+                                            )
+                                        }
+                                        className="w-full rounded border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950"
+                                    />
+                                </td>
+
+                                <td className="px-2 py-2">
+                                    <input
+                                        disabled
+                                        value={item.itemBalance}
+                                        className="w-20 rounded border border-slate-200 bg-slate-100 px-2 py-2 dark:border-slate-700 dark:bg-slate-800"
+                                    />
+                                </td>
+
+                                <td className="px-2 py-2">
+                                    <input
+                                        disabled={isReadOnly || !canModifyCurrentForm}
+                                        value={item.uom}
+                                        onChange={(event) =>
+                                            updateItem(index, "uom", event.target.value)
+                                        }
+                                        className="w-20 rounded border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950"
+                                    />
+                                </td>
+
+                                <td className="px-2 py-2">
+                                    <input
+                                        type="number"
+                                        min="0.001"
+                                        step="any"
+                                        disabled={isReadOnly || !canModifyCurrentForm}
+                                        value={item.quantity}
+                                        onChange={(event) =>
+                                            updateItem(index, "quantity", event.target.value)
+                                        }
+                                        className="w-24 rounded border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950"
+                                    />
+                                </td>
+
+                                <td className="px-2 py-2">
+                                    <input
+                                        disabled
+                                        value={item.retailPrice}
+                                        className="w-24 rounded border border-slate-200 bg-slate-100 px-2 py-2 dark:border-slate-700 dark:bg-slate-800"
+                                    />
+                                </td>
+
+                                <td className="px-2 py-2">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        disabled={isReadOnly || !canModifyCurrentForm}
+                                        value={item.discountPercent}
+                                        onChange={(event) =>
+                                            updateItem(index, "discountPercent", event.target.value)
+                                        }
+                                        className="w-20 rounded border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950"
+                                    />
+                                </td>
+
+                                <td className="px-2 py-2">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="any"
+                                        disabled={isReadOnly || !canModifyCurrentForm}
+                                        value={item.unitPrice}
+                                        onChange={(event) =>
+                                            updateItem(index, "unitPrice", event.target.value)
+                                        }
+                                        className="w-24 rounded border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950"
+                                    />
+                                </td>
+
+                                <td className="whitespace-nowrap px-3 py-2 text-right">
+                                    {money(amount)}
+                                </td>
+
+                                <td className="px-2 py-2">
+                                    {item.taxCode || "-"}
+                                </td>
+
+                                <td className="whitespace-nowrap px-3 py-2 text-right">
+                                    {money(item.taxAmount)}
+                                </td>
+
+                                <td className="whitespace-nowrap px-3 py-2 text-right font-semibold">
+                                    {money(item.lineTotal)}
+                                </td>
+
+                                <td className="px-2 py-2">
+                                    <input
+                                        disabled={isReadOnly || !canModifyCurrentForm}
+                                        value={item.remarks}
+                                        onChange={(event) =>
+                                            updateItem(index, "remarks", event.target.value)
+                                        }
+                                        className="w-32 rounded border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950"
+                                    />
+                                </td>
+
+                                <td className="px-2 py-2">
+                                    {item.itemWeight || "-"}
+                                </td>
+
+                                <td className="px-2 py-2">
+                                    {!isReadOnly && canModifyCurrentForm && (
+                                        <button
+                                            type="button"
+                                            onClick={() => removeItem(index)}
+                                            title="Remove item"
+                                            className="rounded p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                                        >
+                                            <Trash2 size={15} />
+                                        </button>
+                                    )}
+                                </td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+
+            {form.items.length === 0 && (
+                <div className="p-12 text-center">
+                    <Package
+                        size={36}
+                        className="mx-auto text-slate-400"
+                    />
+
+                    <h3 className="mt-3 font-semibold text-slate-800 dark:text-white">
+                        No items added
+                    </h3>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                        Select a product above and click Add Item.
+                    </p>
+                </div>
+            )}
+        </div>
+
+        {/* TOTALS */}
+        <div className="border-t border-slate-200 p-5 dark:border-slate-800">
+            <div className="ml-auto max-w-sm space-y-2 text-sm">
+
+                <div className="flex justify-between">
+                    <span className="text-slate-500">Subtotal</span>
+                    <strong>{money(totals.subtotal)}</strong>
+                </div>
+
+                <div className="flex justify-between">
+                    <span className="text-slate-500">Discount</span>
+                    <strong>{money(totals.discountAmount)}</strong>
+                </div>
+
+                <div className="flex justify-between">
+                    <span className="text-slate-500">Tax Amount</span>
+                    <strong>{money(totals.taxAmount)}</strong>
+                </div>
+
+                <div className="flex justify-between border-t border-slate-200 pt-3 text-base dark:border-slate-700">
+                    <span className="font-semibold">Gross Amount</span>
+
+                    <strong className="text-blue-700 dark:text-blue-400">
+                        {form.currencyCode} {money(totals.grandTotal)}
+                    </strong>
+                </div>
+            </div>
+        </div>
+
+        <div className="border-t border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+                Items are added to this Purchase Order before the document is saved. Saving the Purchase Order stores its item lines; adding items does not itself change inventory stock.
+            </p>
+        </div>
+    </section>
+</div>
 
                     {/* RELATED TRANSACTIONS */}
                     {!isNew && (
@@ -2787,4 +3038,12 @@ export default function PurchaseOrdersPage() {
             )}
         </div>
     );
+}
+function formatNumber(value) {
+  const number = Number(value || 0);
+
+  return number.toLocaleString("en-PK", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }

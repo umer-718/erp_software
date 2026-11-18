@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -48,6 +47,7 @@ const emptyForm = {
   phone: "",
   email: "",
   address: "",
+  receivableAccountId: "",
   openingBalance: "",
   creditLimit: "",
   isActive: true,
@@ -267,10 +267,10 @@ function normalizePermission(data) {
     data?.permission ||
     (Array.isArray(data?.permissions)
       ? data.permissions.find(
-        (item) =>
-          item.permission_key === PERMISSION_KEY ||
-          item.permissionKey === PERMISSION_KEY
-      )
+          (item) =>
+            item.permission_key === PERMISSION_KEY ||
+            item.permissionKey === PERMISSION_KEY
+        )
       : null) ||
     data;
 
@@ -344,14 +344,14 @@ function ColumnVisibilityMenu({
         Columns
 
         <ChevronDown
-          className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""
-            }`}
+          className={`h-4 w-4 transition-transform ${
+            open ? "rotate-180" : ""
+          }`}
         />
       </button>
 
       {open && (
         <>
-          {/* Click outside to close */}
           <button
             type="button"
             aria-label="Close column menu"
@@ -360,7 +360,6 @@ function ColumnVisibilityMenu({
           />
 
           <div className="absolute right-0 top-full z-[100] mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl ring-1 ring-black/5 dark:border-slate-700 dark:bg-slate-900">
-            {/* HEADER */}
             <div className="mb-2 flex items-center justify-between gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
               <div>
                 <p className="text-sm font-bold text-slate-800 dark:text-white">
@@ -383,37 +382,44 @@ function ColumnVisibilityMenu({
               )}
             </div>
 
-            {/* COLUMN OPTIONS */}
             <div className="max-h-64 space-y-1 overflow-y-auto overscroll-contain pr-1">
               {columns.map((column) => {
                 const checked = visible[column.key] !== false;
-                const isLastVisible = checked && visibleCount === 1;
+                const isLastVisible =
+                  checked && visibleCount === 1;
 
                 return (
                   <label
                     key={column.key}
                     aria-disabled={isLastVisible}
-                    title={isLastVisible ? "At least one column must stay visible" : undefined}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${isLastVisible
+                    title={
+                      isLastVisible
+                        ? "At least one column must stay visible"
+                        : undefined
+                    }
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${
+                      isLastVisible
                         ? "cursor-default bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/10 dark:hover:bg-blue-500/20"
                         : "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
-                      }`}
+                    }`}
                   >
                     <input
                       type="checkbox"
                       checked={checked}
                       onChange={() => {
-                        // The last visible column can't be hidden
-                        if (!isLastVisible) onToggle(column.key);
+                        if (!isLastVisible) {
+                          onToggle(column.key);
+                        }
                       }}
                       className="h-4 w-4 cursor-pointer accent-blue-600"
                     />
 
                     <span
-                      className={`font-medium ${isLastVisible
+                      className={`font-medium ${
+                        isLastVisible
                           ? "text-blue-700 dark:text-blue-400"
                           : "text-slate-700 dark:text-slate-200"
-                        }`}
+                      }`}
                     >
                       {column.label}
                     </span>
@@ -557,7 +563,7 @@ function AccessDenied({ message, loading, onRetry }) {
           {loading
             ? "Checking your customer management permissions. Please wait."
             : message ||
-            "You do not have permission to view the Customers page. Contact your administrator if you need access."}
+              "You do not have permission to view the Customers page. Contact your administrator if you need access."}
         </p>
 
         {!loading && onRetry && (
@@ -593,6 +599,9 @@ export default function CustomersPage() {
   const [permission, setPermission] = useState(null);
   const [permissionLoading, setPermissionLoading] = useState(true);
   const [permissionError, setPermissionError] = useState("");
+
+  const [receivableAccounts, setReceivableAccounts] = useState([]);
+  const [accountsLoading, setAccountsLoading] = useState(false);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -650,20 +659,107 @@ export default function CustomersPage() {
   }, []);
 
   useEffect(() => {
-  let isMounted = true;
+    let isMounted = true;
 
-  const initializePermissions = async () => {
-    if (!isMounted) return;
+    const initializePermissions = async () => {
+      if (!isMounted) return;
+      await loadPermission();
+    };
 
-    await loadPermission();
-  };
+    initializePermissions();
 
-  initializePermissions();
+    return () => {
+      isMounted = false;
+    };
+  }, [loadPermission]);
 
-  return () => {
-    isMounted = false;
-  };
-}, [loadPermission]);
+  /* =======================================================
+     LOAD RECEIVABLE ACCOUNTS
+  ======================================================= */
+
+  useEffect(() => {
+    if (!showForm) return;
+
+    let isMounted = true;
+
+    async function loadReceivableAccounts() {
+      setAccountsLoading(true);
+
+      try {
+        const response = await fetch(
+          "/api/accounts?postingOnly=true",
+          {
+            method: "GET",
+            cache: "no-store",
+            headers: {
+              Accept: "application/json",
+            },
+          }
+        );
+
+        const data = await readResponse(response);
+
+        const accounts = Array.isArray(data.accounts)
+          ? data.accounts
+          : [];
+
+        const filteredAccounts = accounts.filter((account) => {
+          return (
+            String(account.account_type || "").toUpperCase() ===
+              "ASSET" &&
+            account.is_active === true &&
+            account.is_group === false &&
+            String(account.account_name || "")
+              .toLowerCase()
+              .includes("receivable")
+          );
+        });
+
+        if (!isMounted) return;
+
+        setReceivableAccounts(filteredAccounts);
+
+        setForm((current) => {
+          // Keep the account already selected for an edited customer.
+          if (current.receivableAccountId) {
+            return current;
+          }
+
+          // Automatically select the first available receivable account.
+          return {
+            ...current,
+            receivableAccountId:
+              filteredAccounts.length > 0
+                ? String(filteredAccounts[0].account_id)
+                : "",
+          };
+        });
+
+        if (filteredAccounts.length === 0) {
+          setError(
+            "No active posting Receivable Account was found. Please check your Chart of Accounts."
+          );
+        }
+      } catch (err) {
+        if (isMounted) {
+          setReceivableAccounts([]);
+          setError(
+            err.message || "Failed to load receivable accounts."
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setAccountsLoading(false);
+        }
+      }
+    }
+
+    loadReceivableAccounts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [showForm]);
 
   /* =======================================================
      LOAD CUSTOMERS AFTER VIEW PERMISSION
@@ -797,6 +893,9 @@ export default function CustomersPage() {
       phone: customer.phone ?? "",
       email: customer.email ?? "",
       address: customer.address ?? "",
+      receivableAccountId: customer.receivable_account_id
+        ? String(customer.receivable_account_id)
+        : "",
       openingBalance: customer.opening_balance ?? "",
       creditLimit: customer.credit_limit ?? "",
       isActive: customer.is_active !== false,
@@ -873,6 +972,25 @@ export default function CustomersPage() {
       return;
     }
 
+    if (accountsLoading) {
+      setError("Please wait while receivable accounts are loading.");
+      return;
+    }
+
+    if (
+      !form.receivableAccountId ||
+      !receivableAccounts.some(
+        (account) =>
+          String(account.account_id) ===
+          String(form.receivableAccountId)
+      )
+    ) {
+      setError(
+        "Please select a valid Receivable Account before saving."
+      );
+      return;
+    }
+
     setSaving(true);
     setError("");
     setSuccess("");
@@ -897,6 +1015,9 @@ export default function CustomersPage() {
           phone: form.phone.trim(),
           email: form.email.trim(),
           address: form.address.trim(),
+          receivableAccountId: Number(
+            form.receivableAccountId
+          ),
           openingBalance,
           creditLimit,
         }),
@@ -1114,8 +1235,9 @@ export default function CustomersPage() {
                     className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/20 disabled:opacity-60"
                   >
                     <RefreshCw
-                      className={`h-4 w-4 ${loading ? "animate-spin" : ""
-                        }`}
+                      className={`h-4 w-4 ${
+                        loading ? "animate-spin" : ""
+                      }`}
                     />
                     Refresh
                   </button>
@@ -1278,6 +1400,9 @@ export default function CustomersPage() {
               </div>
 
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+
+                {/* CUSTOMER CODE */}
+
                 <div>
                   <label htmlFor="customerCode" className={labelClass}>
                     Customer Code <span className="text-red-500">*</span>
@@ -1295,6 +1420,8 @@ export default function CustomersPage() {
                   />
                 </div>
 
+                {/* CUSTOMER NAME */}
+
                 <div>
                   <label htmlFor="customerName" className={labelClass}>
                     Customer Name <span className="text-red-500">*</span>
@@ -1311,6 +1438,8 @@ export default function CustomersPage() {
                     required
                   />
                 </div>
+
+                {/* PHONE */}
 
                 <div>
                   <label htmlFor="phone" className={labelClass}>
@@ -1332,6 +1461,8 @@ export default function CustomersPage() {
                   </div>
                 </div>
 
+                {/* EMAIL */}
+
                 <div>
                   <label htmlFor="email" className={labelClass}>
                     Email Address
@@ -1352,7 +1483,9 @@ export default function CustomersPage() {
                   </div>
                 </div>
 
-                <div className="md:col-span-2 xl:col-span-1">
+                {/* ADDRESS */}
+
+                <div>
                   <label htmlFor="address" className={labelClass}>
                     Address
                   </label>
@@ -1372,7 +1505,64 @@ export default function CustomersPage() {
                     />
                   </div>
                 </div>
+
+                {/* RECEIVABLE ACCOUNT - BESIDE ADDRESS */}
+
+                <div>
+                  <label
+                    htmlFor="receivableAccountId"
+                    className={labelClass}
+                  >
+                    Receivable Account
+                  </label>
+
+                  <div className="relative">
+                    <Wallet className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+
+                    <select
+                      id="receivableAccountId"
+                      name="receivableAccountId"
+                      value={form.receivableAccountId}
+                      onChange={handleChange}
+                      disabled={
+                        accountsLoading ||
+                        receivableAccounts.length === 0
+                      }
+                      required
+                      className={`${inputClass} appearance-none pl-10`}
+                    >
+                      {accountsLoading ? (
+                        <option value="">
+                          Loading accounts...
+                        </option>
+                      ) : receivableAccounts.length === 0 ? (
+                        <option value="">
+                          No receivable account available
+                        </option>
+                      ) : (
+                        receivableAccounts.map((account) => (
+                          <option
+                            key={account.account_id}
+                            value={String(account.account_id)}
+                          >
+                            {account.account_code
+                              ? `${account.account_code} - ${account.account_name}`
+                              : account.account_name}
+                          </option>
+                        ))
+                      )}
+                    </select>
+
+                    <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  </div>
+
+                  <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    Customer Accounts Receivable ledger account.
+                  </p>
+                </div>
               </div>
+
+              {/* FINANCIAL INFORMATION */}
 
               <div className="mb-6 mt-9 flex items-center gap-2 border-t border-slate-100 pt-7 text-xs font-bold uppercase tracking-[0.16em] text-blue-600 dark:border-slate-800 dark:text-blue-400">
                 <CreditCard className="h-4 w-4" />
@@ -1380,6 +1570,9 @@ export default function CustomersPage() {
               </div>
 
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+
+                {/* OPENING BALANCE */}
+
                 <div>
                   <label htmlFor="openingBalance" className={labelClass}>
                     Opening Balance
@@ -1405,6 +1598,8 @@ export default function CustomersPage() {
                     Initial balance for this customer.
                   </p>
                 </div>
+
+                {/* CREDIT LIMIT */}
 
                 <div>
                   <label htmlFor="creditLimit" className={labelClass}>
@@ -1432,6 +1627,8 @@ export default function CustomersPage() {
                   </p>
                 </div>
 
+                {/* ACTIVE STATUS */}
+
                 <div className="flex items-center">
                   <label className="flex w-full cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-blue-200 dark:border-slate-700 dark:bg-slate-800/60 dark:hover:border-blue-800">
                     <input
@@ -1455,6 +1652,8 @@ export default function CustomersPage() {
                 </div>
               </div>
 
+              {/* FORM BUTTONS */}
+
               <div className="mt-9 flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 dark:border-slate-800 sm:flex-row sm:justify-end">
                 <button
                   type="button"
@@ -1470,6 +1669,8 @@ export default function CustomersPage() {
                   type="submit"
                   disabled={
                     saving ||
+                    accountsLoading ||
+                    receivableAccounts.length === 0 ||
                     (editingId ? !canUpdate : !canCreate)
                   }
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:from-blue-700 hover:to-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
@@ -1579,8 +1780,9 @@ export default function CustomersPage() {
                       className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                     >
                       <RefreshCw
-                        className={`h-4 w-4 ${loading ? "animate-spin" : ""
-                          }`}
+                        className={`h-4 w-4 ${
+                          loading ? "animate-spin" : ""
+                        }`}
                       />
                       Refresh
                     </button>
@@ -1716,7 +1918,9 @@ export default function CustomersPage() {
 
                   <div className="hidden w-full overflow-x-auto [scrollbar-width:thin] md:block">
                     <table
-                      style={{ minWidth: `${visibleColumnCount * 160}px` }}
+                      style={{
+                        minWidth: `${visibleColumnCount * 160}px`,
+                      }}
                       className="w-full table-auto text-left text-sm"
                     >
                       <colgroup>
@@ -1881,7 +2085,9 @@ export default function CustomersPage() {
                                     {canUpdate && (
                                       <button
                                         type="button"
-                                        onClick={() => editCustomer(customer)}
+                                        onClick={() =>
+                                          editCustomer(customer)
+                                        }
                                         aria-label={`Edit ${customer.customer_name}`}
                                         title="Edit customer"
                                         className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-blue-900 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"
@@ -1895,7 +2101,9 @@ export default function CustomersPage() {
                                       <button
                                         type="button"
                                         onClick={() =>
-                                          deleteCustomer(customer.customer_id)
+                                          deleteCustomer(
+                                            customer.customer_id
+                                          )
                                         }
                                         disabled={deletingId !== null}
                                         aria-label={`Delete ${customer.customer_name}`}
@@ -1903,7 +2111,7 @@ export default function CustomersPage() {
                                         className="inline-flex items-center justify-center gap-1 rounded-lg border border-red-200 bg-white px-2 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900/50 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950/40"
                                       >
                                         {String(deletingId) ===
-                                          String(customer.customer_id) ? (
+                                        String(customer.customer_id) ? (
                                           <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
                                         ) : (
                                           <Trash2 className="h-3.5 w-3.5" />
@@ -1983,44 +2191,46 @@ export default function CustomersPage() {
                         {(visibleColumns.sales ||
                           visibleColumns.paid ||
                           visibleColumns.balance) && (
-                            <div className="mt-4 grid grid-cols-2 gap-3">
-                              {visibleColumns.sales && (
-                                <div className="min-w-0 rounded-xl border border-slate-100 p-3 dark:border-slate-800">
-                                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                                    Total Sales
-                                  </p>
+                          <div className="mt-4 grid grid-cols-2 gap-3">
+                            {visibleColumns.sales && (
+                              <div className="min-w-0 rounded-xl border border-slate-100 p-3 dark:border-slate-800">
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                  Total Sales
+                                </p>
 
-                                  <p className="mt-1 break-words font-bold text-slate-900 dark:text-white">
-                                    {formatAmount(customer.total_sales)}
-                                  </p>
-                                </div>
-                              )}
+                                <p className="mt-1 break-words font-bold text-slate-900 dark:text-white">
+                                  {formatAmount(customer.total_sales)}
+                                </p>
+                              </div>
+                            )}
 
-                              {visibleColumns.paid && (
-                                <div className="min-w-0 rounded-xl border border-slate-100 p-3 dark:border-slate-800">
-                                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                                    Total Paid
-                                  </p>
+                            {visibleColumns.paid && (
+                              <div className="min-w-0 rounded-xl border border-slate-100 p-3 dark:border-slate-800">
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                  Total Paid
+                                </p>
 
-                                  <p className="mt-1 break-words font-bold text-emerald-700 dark:text-emerald-300">
-                                    {formatAmount(customer.total_paid)}
-                                  </p>
-                                </div>
-                              )}
+                                <p className="mt-1 break-words font-bold text-emerald-700 dark:text-emerald-300">
+                                  {formatAmount(customer.total_paid)}
+                                </p>
+                              </div>
+                            )}
 
-                              {visibleColumns.balance && (
-                                <div className="col-span-2 min-w-0 rounded-xl border border-blue-100 bg-blue-50/60 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
-                                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                                    Customer Balance
-                                  </p>
+                            {visibleColumns.balance && (
+                              <div className="col-span-2 min-w-0 rounded-xl border border-blue-100 bg-blue-50/60 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                  Customer Balance
+                                </p>
 
-                                  <p className="mt-1 break-words text-lg font-bold text-blue-800 dark:text-blue-300">
-                                    {formatAmount(customer.customer_balance)}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          )}
+                                <p className="mt-1 break-words text-lg font-bold text-blue-800 dark:text-blue-300">
+                                  {formatAmount(
+                                    customer.customer_balance
+                                  )}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         {visibleColumns.actions &&
                           (canUpdate || canDelete) && (
@@ -2046,7 +2256,7 @@ export default function CustomersPage() {
                                   className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-200 px-3 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-950/40"
                                 >
                                   {String(deletingId) ===
-                                    String(customer.customer_id) ? (
+                                  String(customer.customer_id) ? (
                                     <LoaderCircle className="h-4 w-4 animate-spin" />
                                   ) : (
                                     <Trash2 className="h-4 w-4" />

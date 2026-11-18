@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -78,7 +79,7 @@ const emptyForm = () => ({
     expectedReceiptDate: "",
     status: "PENDING",
     remarks: "",
-    items: [emptyItem()],
+    items: [],
 });
 
 const numberFormat = (value) =>
@@ -156,6 +157,10 @@ export default function PendingItemReceiptsPage() {
 
     const [form, setForm] = useState(emptyForm());
 
+    // Separate quick-entry state. Items enter form.items only after Add Item.
+    const [newItem, setNewItem] = useState(emptyItem());
+    const [newItemError, setNewItemError] = useState("");
+
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("ALL");
     const [sourceFilter, setSourceFilter] = useState("ALL");
@@ -182,13 +187,10 @@ export default function PendingItemReceiptsPage() {
         setPermissionError("");
 
         try {
-            const response = await fetch(
-                "/api/auth/my-permissions",
-                {
-                    method: "GET",
-                    cache: "no-store",
-                }
-            );
+            const response = await fetch("/api/auth/my-permissions", {
+                method: "GET",
+                cache: "no-store",
+            });
 
             const data = await readJsonResponse(response);
 
@@ -210,7 +212,6 @@ export default function PendingItemReceiptsPage() {
                     item.permission_key === "pending_item_receipts"
             );
 
-            // Missing permission row or role_permissions record means no access.
             const nextPermissions = {
                 canView: permission?.can_view === true,
                 canCreate: permission?.can_create === true,
@@ -356,9 +357,47 @@ export default function PendingItemReceiptsPage() {
         }));
     };
 
+    /* ---------------------------------------------------------------------- */
+    /* Quick Item Entry                                                       */
+    /* ---------------------------------------------------------------------- */
+
+    const updateNewItem = (field, value) => {
+        setNewItem((previous) => ({
+            ...previous,
+            [field]: value,
+        }));
+
+        setNewItemError("");
+    };
+
+    const handleNewProductChange = (productId) => {
+        const product = products.find(
+            (item) =>
+                Number(item.product_id) === Number(productId)
+        );
+
+        setNewItem((previous) => ({
+            ...previous,
+            productId: productId || "",
+            description:
+                product?.product_name || previous.description || "",
+            uom: product?.unit || previous.uom || "PCS",
+        }));
+
+        setNewItemError("");
+    };
+
+    /* ---------------------------------------------------------------------- */
+    /* Add completed item to transaction                                     */
+    /* ---------------------------------------------------------------------- */
+
     const addItem = () => {
-        if (!permissions.canUpdate && mode !== "create") {
-            setError("You do not have permission to update receipts.");
+        if (mode === "view") return;
+
+        if (form.sourceType !== "MANUAL") {
+            setError(
+                "Manual items can only be added to a Manual receipt."
+            );
             return;
         }
 
@@ -367,13 +406,57 @@ export default function PendingItemReceiptsPage() {
             return;
         }
 
-        if (mode === "view") return;
+        if (mode === "edit" && !permissions.canUpdate) {
+            setError("You do not have permission to update receipts.");
+            return;
+        }
+
+        setError("");
+
+        if (!String(newItem.description || "").trim()) {
+            setNewItemError("Please enter an item description.");
+            return;
+        }
+
+        const quantity = Number(newItem.quantityExpected);
+
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+            setNewItemError(
+                "Expected quantity must be greater than zero."
+            );
+            return;
+        }
+
+        if (!String(newItem.uom || "").trim()) {
+            setNewItemError(
+                "Please enter the unit of measurement."
+            );
+            return;
+        }
+
+        const itemToAdd = {
+            ...newItem,
+            purchaseOrderItemId: null,
+            productId: newItem.productId || "",
+            description: String(newItem.description).trim(),
+            uom: String(newItem.uom).trim(),
+            quantityExpected: String(quantity),
+            remarks: String(newItem.remarks || "").trim(),
+        };
 
         setForm((previous) => ({
             ...previous,
-            items: [...previous.items, emptyItem()],
+            items: [...previous.items, itemToAdd],
         }));
+
+        // Clear the quick-entry fields after adding the completed item.
+        setNewItem(emptyItem());
+        setNewItemError("");
     };
+
+    /* ---------------------------------------------------------------------- */
+    /* Remove item                                                            */
+    /* ---------------------------------------------------------------------- */
 
     const removeItem = (index) => {
         if (mode === "view") return;
@@ -388,20 +471,16 @@ export default function PendingItemReceiptsPage() {
             return;
         }
 
-        setForm((previous) => {
-            const items = previous.items.filter(
+        setForm((previous) => ({
+            ...previous,
+            items: previous.items.filter(
                 (_, itemIndex) => itemIndex !== index
-            );
-
-            return {
-                ...previous,
-                items: items.length ? items : [emptyItem()],
-            };
-        });
+            ),
+        }));
     };
 
     /* ---------------------------------------------------------------------- */
-    /* Product selection                                                      */
+    /* Product selection in existing item rows                               */
     /* ---------------------------------------------------------------------- */
 
     const handleProductChange = (index, productId) => {
@@ -442,6 +521,8 @@ export default function PendingItemReceiptsPage() {
         setSuccess("");
         setSelectedReceipt(null);
         setForm(emptyForm());
+        setNewItem(emptyItem());
+        setNewItemError("");
         setMode("create");
     };
 
@@ -463,8 +544,11 @@ export default function PendingItemReceiptsPage() {
             supplierId: "",
             purchaseOrderId: "",
             expectedReceiptDate: "",
-            items: [emptyItem()],
+            items: [],
         }));
+
+        setNewItem(emptyItem());
+        setNewItemError("");
     };
 
     /* ---------------------------------------------------------------------- */
@@ -480,6 +564,8 @@ export default function PendingItemReceiptsPage() {
         }
 
         setError("");
+        setNewItem(emptyItem());
+        setNewItemError("");
 
         if (!purchaseOrderId) {
             setForm((previous) => ({
@@ -487,7 +573,7 @@ export default function PendingItemReceiptsPage() {
                 purchaseOrderId: "",
                 supplierId: "",
                 expectedReceiptDate: "",
-                items: [emptyItem()],
+                items: [],
             }));
 
             return;
@@ -578,6 +664,12 @@ export default function PendingItemReceiptsPage() {
             setError(
                 err.message || "Unable to load Purchase Order."
             );
+
+            setForm((previous) => ({
+                ...previous,
+                purchaseOrderId: String(purchaseOrderId),
+                items: [],
+            }));
         } finally {
             setDetailLoading(false);
         }
@@ -601,6 +693,9 @@ export default function PendingItemReceiptsPage() {
         setError("");
         setSuccess("");
         setDetailLoading(true);
+
+        setNewItem(emptyItem());
+        setNewItemError("");
 
         try {
             const response = await fetch(
@@ -786,6 +881,13 @@ export default function PendingItemReceiptsPage() {
                 return;
             }
 
+            if (!String(item.uom || "").trim()) {
+                setError(
+                    `Please enter a UOM for item ${index + 1}.`
+                );
+                return;
+            }
+
             if (
                 form.sourceType === "PURCHASE_ORDER" &&
                 !item.purchaseOrderItemId
@@ -837,7 +939,7 @@ export default function PendingItemReceiptsPage() {
                     item.description || ""
                 ).trim(),
 
-                uom: item.uom || "PCS",
+                uom: String(item.uom || "PCS").trim(),
 
                 quantityExpected: Number(item.quantityExpected),
 
@@ -892,6 +994,8 @@ export default function PendingItemReceiptsPage() {
             setMode("list");
             setSelectedReceipt(null);
             setForm(emptyForm());
+            setNewItem(emptyItem());
+            setNewItemError("");
         } catch (err) {
             setError(
                 err.message || "Unable to save receipt."
@@ -1410,6 +1514,8 @@ export default function PendingItemReceiptsPage() {
                                 setMode("list");
                                 setError("");
                                 setSuccess("");
+                                setNewItem(emptyItem());
+                                setNewItemError("");
                             }}
                             className="mt-1 rounded-lg border border-gray-300 p-2 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
                             title="Back to list"
@@ -1801,7 +1907,6 @@ export default function PendingItemReceiptsPage() {
 
                                                 <td className="px-5 py-4">
                                                     <div className="flex items-center justify-end gap-1.5">
-                                                        {/* View is allowed when can_view is true */}
                                                         <button
                                                             type="button"
                                                             onClick={() =>
@@ -1816,7 +1921,6 @@ export default function PendingItemReceiptsPage() {
                                                             <Eye size={17} />
                                                         </button>
 
-                                                        {/* Edit requires can_update */}
                                                         {permissions.canUpdate &&
                                                             receipt.status !== "CANCELLED" && (
                                                                 <button
@@ -1834,7 +1938,6 @@ export default function PendingItemReceiptsPage() {
                                                                 </button>
                                                             )}
 
-                                                        {/* Print requires only can_view */}
                                                         <button
                                                             type="button"
                                                             onClick={() =>
@@ -1846,7 +1949,6 @@ export default function PendingItemReceiptsPage() {
                                                             <Printer size={17} />
                                                         </button>
 
-                                                        {/* Delete requires can_delete */}
                                                         {permissions.canDelete &&
                                                             receipt.status !== "CANCELLED" && (
                                                                 <button
@@ -2197,35 +2299,181 @@ export default function PendingItemReceiptsPage() {
 
                     {/* Item details */}
                     <div className={`${cardClass} overflow-hidden`}>
-                        <div className="flex flex-col gap-3 border-b border-gray-200 p-5 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="flex items-center gap-2">
-                                <Package
-                                    size={19}
-                                    className="text-blue-600"
-                                />
+                        <div className="border-b border-gray-200 p-5 dark:border-gray-800">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Package
+                                        size={19}
+                                        className="text-blue-600"
+                                    />
 
-                                <div>
-                                    <h3 className="font-semibold text-gray-900 dark:text-white">
-                                        Item Details
-                                    </h3>
+                                    <div>
+                                        <h3 className="font-semibold text-gray-900 dark:text-white">
+                                            Item Details
+                                        </h3>
 
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                        {form.items.length} item row(s)
-                                    </p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            {form.items.length} item row(s)
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
 
-                            {!isReadOnly &&
-                                form.sourceType === "MANUAL" && (
-                                    <button
-                                        type="button"
-                                        onClick={addItem}
-                                        className={secondaryButton}
-                                    >
-                                        <Plus size={16} />
-                                        Add Item
-                                    </button>
-                                )}
+                            {/* Quick Item Entry */}
+                            {!isReadOnly && form.sourceType === "MANUAL" && (
+                                <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900 dark:bg-blue-950/20">
+                                    <div className="mb-4">
+                                        <h4 className="font-semibold text-gray-900 dark:text-white">
+                                            Quick Item Entry
+                                        </h4>
+
+                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                            Select a product, enter its details,
+                                            and add it to the receipt.
+                                        </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+
+                                        {/* Product */}
+                                        <div>
+                                            <label className={labelClass}>
+                                                Item / Product
+                                            </label>
+
+                                            <select
+                                                value={newItem.productId}
+                                                onChange={(event) =>
+                                                    handleNewProductChange(
+                                                        event.target.value
+                                                    )
+                                                }
+                                                className={inputClass}
+                                            >
+                                                <option value="">
+                                                    Select Product (Optional)
+                                                </option>
+
+                                                {products.map((product) => (
+                                                    <option
+                                                        key={product.product_id}
+                                                        value={product.product_id}
+                                                    >
+                                                        {product.product_name}
+                                                        {product.sku
+                                                            ? ` (${product.sku})`
+                                                            : ""}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        {/* Description */}
+                                        <div>
+                                            <label className={labelClass}>
+                                                Description{" "}
+                                                <span className="text-red-500">*</span>
+                                            </label>
+
+                                            <input
+                                                type="text"
+                                                value={newItem.description}
+                                                onChange={(event) =>
+                                                    updateNewItem(
+                                                        "description",
+                                                        event.target.value
+                                                    )
+                                                }
+                                                placeholder="Enter item description"
+                                                className={inputClass}
+                                            />
+                                        </div>
+
+                                        {/* UOM */}
+                                        <div>
+                                            <label className={labelClass}>
+                                                Unit of Measurement{" "}
+                                                <span className="text-red-500">*</span>
+                                            </label>
+
+                                            <input
+                                                type="text"
+                                                value={newItem.uom}
+                                                onChange={(event) =>
+                                                    updateNewItem(
+                                                        "uom",
+                                                        event.target.value
+                                                    )
+                                                }
+                                                placeholder="PCS"
+                                                className={inputClass}
+                                            />
+                                        </div>
+
+                                        {/* Quantity */}
+                                        <div>
+                                            <label className={labelClass}>
+                                                Expected Quantity{" "}
+                                                <span className="text-red-500">*</span>
+                                            </label>
+
+                                            <input
+                                                type="number"
+                                                min="0.0001"
+                                                step="any"
+                                                value={newItem.quantityExpected}
+                                                onChange={(event) =>
+                                                    updateNewItem(
+                                                        "quantityExpected",
+                                                        event.target.value
+                                                    )
+                                                }
+                                                placeholder="Enter quantity"
+                                                className={`${inputClass} text-right`}
+                                            />
+                                        </div>
+
+                                        {/* Remarks */}
+                                        <div>
+                                            <label className={labelClass}>
+                                                Remarks
+                                            </label>
+
+                                            <input
+                                                type="text"
+                                                value={newItem.remarks}
+                                                onChange={(event) =>
+                                                    updateNewItem(
+                                                        "remarks",
+                                                        event.target.value
+                                                    )
+                                                }
+                                                placeholder="Optional remarks"
+                                                className={inputClass}
+                                            />
+                                        </div>
+
+                                        {/* Add button */}
+                                        <div className="flex items-end">
+                                            <button
+                                                type="button"
+                                                onClick={addItem}
+                                                className={`${primaryButton} w-full`}
+                                            >
+                                                <Plus size={17} />
+                                                Add Item
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {newItemError && (
+                                        <p className="mt-3 flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+                                            <AlertCircle size={15} />
+                                            {newItemError}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {detailLoading && (
@@ -2273,170 +2521,174 @@ export default function PendingItemReceiptsPage() {
                                 </thead>
 
                                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                                    {form.items.map((item, index) => (
-                                        <tr
-                                            key={`${item.purchaseOrderItemId || "manual"}-${index}`}
-                                        >
-                                            <td className="px-4 py-3 text-gray-500">
-                                                {index + 1}
+                                    {form.items.length === 0 ? (
+                                        <tr>
+                                            <td
+                                                colSpan={
+                                                    !isReadOnly &&
+                                                    form.sourceType === "MANUAL"
+                                                        ? 6
+                                                        : 5
+                                                }
+                                                className="px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400"
+                                            >
+                                                {form.sourceType === "PURCHASE_ORDER"
+                                                    ? "Select a Purchase Order to load its items."
+                                                    : "No items added yet. Use Quick Item Entry above to add an item."}
                                             </td>
-
-                                            <td className="px-4 py-3">
-                                                {form.sourceType === "MANUAL" ? (
-                                                    <div className="space-y-2">
-                                                        <select
-                                                            value={item.productId}
-                                                            onChange={(event) =>
-                                                                handleProductChange(
-                                                                    index,
-                                                                    event.target.value
-                                                                )
-                                                            }
-                                                            disabled={isReadOnly}
-                                                            className={inputClass}
-                                                        >
-                                                            <option value="">
-                                                                Select Product (Optional)
-                                                            </option>
-
-                                                            {products.map((product) => (
-                                                                <option
-                                                                    key={product.product_id}
-                                                                    value={product.product_id}
-                                                                >
-                                                                    {product.product_name}
-
-                                                                    {product.sku
-                                                                        ? ` (${product.sku})`
-                                                                        : ""}
-                                                                </option>
-                                                            ))}
-                                                        </select>
-
-                                                        <input
-                                                            type="text"
-                                                            value={item.description}
-                                                            onChange={(event) =>
-                                                                updateItem(
-                                                                    index,
-                                                                    "description",
-                                                                    event.target.value
-                                                                )
-                                                            }
-                                                            disabled={isReadOnly}
-                                                            placeholder="Item description"
-                                                            className={inputClass}
-                                                        />
-                                                    </div>
-                                                ) : (
-                                                    <div>
-                                                        <p className="font-medium text-gray-900 dark:text-white">
-                                                            {item.description}
-                                                        </p>
-
-                                                        <p className="mt-1 text-xs text-gray-500">
-                                                            {item.productId
-                                                                ? products.find(
-                                                                    (product) =>
-                                                                        Number(product.product_id) ===
-                                                                        Number(item.productId)
-                                                                )?.sku || ""
-                                                                : ""}
-                                                        </p>
-                                                    </div>
-                                                )}
-                                            </td>
-
-                                            <td className="px-4 py-3">
-                                                <input
-                                                    type="text"
-                                                    value={item.uom}
-                                                    onChange={(event) =>
-                                                        updateItem(
-                                                            index,
-                                                            "uom",
-                                                            event.target.value
-                                                        )
-                                                    }
-                                                    disabled={
-                                                        isReadOnly ||
-                                                        form.sourceType === "PURCHASE_ORDER"
-                                                    }
-                                                    className={inputClass}
-                                                    placeholder="PCS"
-                                                />
-                                            </td>
-
-                                            <td className="px-4 py-3">
-                                                <input
-                                                    type="number"
-                                                    min="1"
-                                                    step="1"
-                                                    value={item.quantityExpected}
-                                                    onChange={(event) =>
-                                                        updateItem(
-                                                            index,
-                                                            "quantityExpected",
-                                                            event.target.value
-                                                        )
-                                                    }
-                                                    disabled={isReadOnly}
-                                                    required
-                                                    className={`${inputClass} text-right`}
-                                                />
-                                            </td>
-
-                                            <td className="px-4 py-3">
-                                                <input
-                                                    type="text"
-                                                    value={item.remarks}
-                                                    onChange={(event) =>
-                                                        updateItem(
-                                                            index,
-                                                            "remarks",
-                                                            event.target.value
-                                                        )
-                                                    }
-                                                    disabled={isReadOnly}
-                                                    placeholder="Optional remarks"
-                                                    className={inputClass}
-                                                />
-                                            </td>
-
-                                            {!isReadOnly &&
-                                                form.sourceType === "MANUAL" && (
-                                                    <td className="px-4 py-3 text-center">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                                removeItem(index)
-                                                            }
-                                                            title="Remove item"
-                                                            className="rounded-lg p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
-                                                        >
-                                                            <Trash2 size={17} />
-                                                        </button>
-                                                    </td>
-                                                )}
                                         </tr>
-                                    ))}
+                                    ) : (
+                                        form.items.map((item, index) => (
+                                            <tr
+                                                key={`${item.purchaseOrderItemId || "manual"}-${index}`}
+                                            >
+                                                <td className="px-4 py-3 text-gray-500">
+                                                    {index + 1}
+                                                </td>
+
+                                                <td className="px-4 py-3">
+                                                    {form.sourceType === "MANUAL" ? (
+                                                        <div className="space-y-2">
+                                                            <select
+                                                                value={item.productId}
+                                                                onChange={(event) =>
+                                                                    handleProductChange(
+                                                                        index,
+                                                                        event.target.value
+                                                                    )
+                                                                }
+                                                                disabled={isReadOnly}
+                                                                className={inputClass}
+                                                            >
+                                                                <option value="">
+                                                                    Select Product (Optional)
+                                                                </option>
+
+                                                                {products.map((product) => (
+                                                                    <option
+                                                                        key={product.product_id}
+                                                                        value={product.product_id}
+                                                                    >
+                                                                        {product.product_name}
+
+                                                                        {product.sku
+                                                                            ? ` (${product.sku})`
+                                                                            : ""}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+
+                                                            <input
+                                                                type="text"
+                                                                value={item.description}
+                                                                onChange={(event) =>
+                                                                    updateItem(
+                                                                        index,
+                                                                        "description",
+                                                                        event.target.value
+                                                                    )
+                                                                }
+                                                                disabled={isReadOnly}
+                                                                placeholder="Item description"
+                                                                className={inputClass}
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <div>
+                                                            <p className="font-medium text-gray-900 dark:text-white">
+                                                                {item.description}
+                                                            </p>
+
+                                                            <p className="mt-1 text-xs text-gray-500">
+                                                                {item.productId
+                                                                    ? products.find(
+                                                                        (product) =>
+                                                                            Number(product.product_id) ===
+                                                                            Number(item.productId)
+                                                                    )?.sku || ""
+                                                                    : ""}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                </td>
+
+                                                <td className="px-4 py-3">
+                                                    <input
+                                                        type="text"
+                                                        value={item.uom}
+                                                        onChange={(event) =>
+                                                            updateItem(
+                                                                index,
+                                                                "uom",
+                                                                event.target.value
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            isReadOnly ||
+                                                            form.sourceType === "PURCHASE_ORDER"
+                                                        }
+                                                        className={inputClass}
+                                                        placeholder="PCS"
+                                                    />
+                                                </td>
+
+                                                <td className="px-4 py-3">
+                                                    <input
+                                                        type="number"
+                                                        min="0.0001"
+                                                        step="any"
+                                                        value={item.quantityExpected}
+                                                        onChange={(event) =>
+                                                            updateItem(
+                                                                index,
+                                                                "quantityExpected",
+                                                                event.target.value
+                                                            )
+                                                        }
+                                                        disabled={isReadOnly}
+                                                        required
+                                                        className={`${inputClass} text-right`}
+                                                    />
+                                                </td>
+
+                                                <td className="px-4 py-3">
+                                                    <input
+                                                        type="text"
+                                                        value={item.remarks}
+                                                        onChange={(event) =>
+                                                            updateItem(
+                                                                index,
+                                                                "remarks",
+                                                                event.target.value
+                                                            )
+                                                        }
+                                                        disabled={isReadOnly}
+                                                        placeholder="Optional remarks"
+                                                        className={inputClass}
+                                                    />
+                                                </td>
+
+                                                {!isReadOnly &&
+                                                    form.sourceType === "MANUAL" && (
+                                                        <td className="px-4 py-3 text-center">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    removeItem(index)
+                                                                }
+                                                                title="Remove item"
+                                                                className="rounded-lg p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
+                                                            >
+                                                                <Trash2 size={17} />
+                                                            </button>
+                                                        </td>
+                                                    )}
+                                            </tr>
+                                        ))
+                                    )}
                                 </tbody>
                             </table>
                         </div>
-
-                        {form.sourceType === "MANUAL" &&
-                            !isReadOnly && (
-                                <div className="border-t border-gray-100 px-5 py-3 dark:border-gray-800">
-                                    <button
-                                        type="button"
-                                        onClick={addItem}
-                                        className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400"
-                                    >
-                                        <Plus size={16} />
-                                        Add another item
-                                    </button>
-                                </div>
-                            )}
                     </div>
 
                     {/* Remarks */}
@@ -2468,6 +2720,8 @@ export default function PendingItemReceiptsPage() {
                                 setMode("list");
                                 setError("");
                                 setSuccess("");
+                                setNewItem(emptyItem());
+                                setNewItemError("");
                             }}
                             className={secondaryButton}
                         >

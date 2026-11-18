@@ -1,33 +1,11 @@
-
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    AlertCircle,
-    ArrowLeft,
-    Check,
-    CheckCircle2,
-    ClipboardList,
-    Eye,
-    FileText,
-    Filter,
-    LoaderCircle,
-    Package,
-    Plus,
-    Printer,
-    RefreshCw,
-    Search,
-    Save,
-    Trash2,
-    Truck,
-    Warehouse,
-    X,
-    Pencil,
-    CalendarDays,
-    Boxes,
-    CircleDollarSign,
-    ClipboardCheck,
-    Download,
+    AlertCircle, ArrowLeft, Check, CheckCircle2, ClipboardList,
+    Eye, FileText, Filter, LoaderCircle, Package, Plus, Printer,
+    RefreshCw, Search, Save, Trash2, Warehouse, X, Pencil,
+    Boxes, ClipboardCheck,
 } from "lucide-react";
 
 // ============================================================
@@ -36,6 +14,15 @@ import {
 
 const API_URL = "/api/item-receipts";
 const PERMISSION_KEY = "item_receipts";
+
+function getToday() {
+    const date = new Date();
+    return [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, "0"),
+        String(date.getDate()).padStart(2, "0"),
+    ].join("-");
+}
 
 const EMPTY_FORM = {
     sourceType: "MANUAL",
@@ -46,16 +33,6 @@ const EMPTY_FORM = {
     receiptDate: getToday(),
     remarks: "",
 };
-
-function getToday() {
-    const date = new Date();
-
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-
-    return `${year}-${month}-${day}`;
-}
 
 function createEmptyItem() {
     return {
@@ -94,9 +71,7 @@ async function readResponse(response) {
 
     if (!response.ok) {
         throw new Error(
-            data.message ||
-            data.error ||
-            "The request could not be completed."
+            data.message || data.error || "The request could not be completed."
         );
     }
 
@@ -107,7 +82,6 @@ function formatDate(value) {
     if (!value) return "-";
 
     const date = String(value).slice(0, 10);
-
     const [year, month, day] = date.split("-");
 
     if (!year || !month || !day) return date;
@@ -179,10 +153,7 @@ function getProductUnit(product) {
 function normalizeProducts(data) {
     const products = Array.isArray(data)
         ? data
-        : data.products ||
-        data.data ||
-        data.items ||
-        [];
+        : data.products || data.data || data.items || [];
 
     return products.filter((product) => getProductId(product));
 }
@@ -203,22 +174,15 @@ function normalizeReceiptItem(item) {
                 : "",
 
         itemDescription:
-            item.item_description ||
-            item.product_name ||
-            "",
+            item.item_description || item.product_name || "",
 
-        uom:
-            item.uom ||
-            item.product_unit ||
-            "PCS",
+        uom: item.uom || item.product_unit || "PCS",
 
         quantityReceived: String(
             item.quantity_received ?? item.quantityReceived ?? 1
         ),
 
-        unitCost: String(
-            item.unit_cost ?? item.unitCost ?? 0
-        ),
+        unitCost: String(item.unit_cost ?? item.unitCost ?? 0),
 
         remarks: item.remarks || "",
     };
@@ -233,9 +197,7 @@ function Field({ label, required, children, hint }) {
         <div className="min-w-0">
             <label className={LABEL_CLASS}>
                 {label}
-                {required && (
-                    <span className="ml-1 text-red-500">*</span>
-                )}
+                {required && <span className="ml-1 text-red-500">*</span>}
             </label>
 
             {children}
@@ -259,13 +221,7 @@ function StatusBadge({ status }) {
     );
 }
 
-function SummaryCard({
-    title,
-    value,
-    description,
-    icon: Icon,
-    color = "blue",
-}) {
+function SummaryCard({ title, value, description, icon: Icon, color = "blue" }) {
     const colors = {
         blue: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
         emerald: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
@@ -286,9 +242,7 @@ function SummaryCard({
                     </p>
                 </div>
 
-                <div
-                    className={`flex h-11 w-11 items-center justify-center rounded-xl ${colors[color]}`}
-                >
+                <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${colors[color]}`}>
                     <Icon size={22} />
                 </div>
             </div>
@@ -316,8 +270,14 @@ export default function ItemReceiptsPage() {
     const [pendingReceipts, setPendingReceipts] = useState([]);
     const [products, setProducts] = useState([]);
 
-    const [form, setForm] = useState(EMPTY_FORM);
-    const [items, setItems] = useState([createEmptyItem()]);
+    const [form, setForm] = useState({ ...EMPTY_FORM });
+
+    // Saved-in-form items
+    const [items, setItems] = useState([]);
+
+    // Quick Item Entry fields
+    const [newItem, setNewItem] = useState(createEmptyItem());
+    const [newItemError, setNewItemError] = useState("");
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -342,7 +302,7 @@ export default function ItemReceiptsPage() {
     });
 
     // --------------------------------------------------------
-    // PERMISSION HELPERS
+    // PERMISSIONS
     // --------------------------------------------------------
 
     const loadPermissions = useCallback(async () => {
@@ -356,10 +316,9 @@ export default function ItemReceiptsPage() {
 
             const data = await response.json();
 
-            const permissionRows =
-                Array.isArray(data)
-                    ? data
-                    : data.permissions || data.data || [];
+            const permissionRows = Array.isArray(data)
+                ? data
+                : data.permissions || data.data || [];
 
             const permission = permissionRows.find(
                 (item) =>
@@ -389,6 +348,13 @@ export default function ItemReceiptsPage() {
                         permission.canDelete ??
                         false,
                 });
+            } else {
+                setPermissions({
+                    canView: false,
+                    canCreate: false,
+                    canUpdate: false,
+                    canDelete: false,
+                });
             }
         } catch (err) {
             console.error("Permission loading error:", err);
@@ -404,20 +370,12 @@ export default function ItemReceiptsPage() {
         setError("");
 
         try {
-            const [receiptResponse, productResponse] =
-                await Promise.all([
-                    fetch(API_URL, { cache: "no-store" }),
-                    fetch("/api/products", { cache: "no-store" }),
-                ]);
+            const [receiptResponse, productResponse] = await Promise.all([
+                fetch(API_URL, { cache: "no-store" }),
+                fetch("/api/products", { cache: "no-store" }),
+            ]);
 
             const data = await readResponse(receiptResponse);
-
-            console.log("ITEM RECEIPTS API RESPONSE:", data);
-
-            console.log("SUPPLIERS:", data.suppliers);
-            console.log("WAREHOUSES:", data.warehouses);
-            console.log("PURCHASE ORDERS:", data.purchaseOrders);
-            console.log("PENDING RECEIPTS:", data.pendingReceipts);
 
             const productData = productResponse.ok
                 ? await productResponse.json().catch(() => ({}))
@@ -429,7 +387,6 @@ export default function ItemReceiptsPage() {
             setPurchaseOrders(data.purchaseOrders || []);
             setPendingReceipts(data.pendingReceipts || []);
             setProducts(normalizeProducts(productData));
-
         } catch (err) {
             setError(err.message || "Failed to load Item Receipts.");
         } finally {
@@ -438,30 +395,23 @@ export default function ItemReceiptsPage() {
     }, []);
 
     useEffect(() => {
-        let cancelled = false;
+    let cancelled = false;
 
-        const initializePage = async () => {
-            try {
-                await Promise.all([
-                    loadPermissions(),
-                    fetchData(),
-                ]);
-            } catch (error) {
-                if (!cancelled) {
-                    console.error(
-                        "Item Receipt page initialization error:",
-                        error
-                    );
-                }
-            }
-        };
+    const initializePage = async () => {
+        if (cancelled) return;
 
-        initializePage();
+        await Promise.all([
+            loadPermissions(),
+            fetchData(),
+        ]);
+    };
 
-        return () => {
-            cancelled = true;
-        };
-    }, [loadPermissions, fetchData]);
+    initializePage();
+
+    return () => {
+        cancelled = true;
+    };
+}, [loadPermissions, fetchData]);
 
     // --------------------------------------------------------
     // FORM HELPERS
@@ -484,6 +434,16 @@ export default function ItemReceiptsPage() {
         );
     }
 
+    function updateNewItem(field, value) {
+        setNewItem((previous) => ({
+            ...previous,
+            [field]: value,
+        }));
+
+        setNewItemError("");
+    }
+
+    // Product selection for an existing item row
     function selectProduct(index, productId) {
         const product = products.find(
             (item) =>
@@ -495,10 +455,7 @@ export default function ItemReceiptsPage() {
                 if (itemIndex !== index) return item;
 
                 if (!product) {
-                    return {
-                        ...item,
-                        productId: "",
-                    };
+                    return { ...item, productId: "" };
                 }
 
                 return {
@@ -517,21 +474,95 @@ export default function ItemReceiptsPage() {
         );
     }
 
-    function addItem() {
-        setItems((previous) => [
+    // Product selection for Quick Item Entry
+    function selectNewProduct(productId) {
+        const product = products.find(
+            (item) =>
+                String(getProductId(item)) === String(productId)
+        );
+
+        if (!product) {
+            setNewItem((previous) => ({
+                ...previous,
+                productId: "",
+            }));
+            return;
+        }
+
+        setNewItem((previous) => ({
             ...previous,
-            createEmptyItem(),
-        ]);
+            productId: String(getProductId(product)),
+            itemDescription: getProductName(product),
+            uom: getProductUnit(product),
+            unitCost: String(
+                product.cost_price ??
+                product.purchase_price ??
+                previous.unitCost ??
+                0
+            ),
+        }));
+
+        setNewItemError("");
+    }
+
+    // Add completed item from Quick Item Entry
+    function addItem() {
+        setNewItemError("");
+
+        if (
+            form.sourceType === "PURCHASE_ORDER" ||
+            form.sourceType === "PENDING_ITEM_RECEIPT"
+        ) {
+            setNewItemError(
+                "Quick Item Entry is available for Manual receipts. Source-linked items are loaded from their source document."
+            );
+            return;
+        }
+
+        if (!newItem.itemDescription.trim()) {
+            setNewItemError("Please enter an item description.");
+            return;
+        }
+
+        if (!newItem.uom.trim()) {
+            setNewItemError("Please enter the unit of measurement.");
+            return;
+        }
+
+        const quantity = Number(newItem.quantityReceived);
+        const unitCost = Number(newItem.unitCost);
+
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+            setNewItemError("Received quantity must be greater than zero.");
+            return;
+        }
+
+        if (!Number.isFinite(unitCost) || unitCost < 0) {
+            setNewItemError("Unit cost cannot be negative.");
+            return;
+        }
+
+        const itemToAdd = {
+            ...newItem,
+            productId: newItem.productId || "",
+            itemDescription: newItem.itemDescription.trim(),
+            uom: newItem.uom.trim(),
+            quantityReceived: String(quantity),
+            unitCost: String(unitCost),
+            remarks: newItem.remarks.trim(),
+        };
+
+        setItems((previous) => [...previous, itemToAdd]);
+        setNewItem(createEmptyItem());
+        setNewItemError("");
+
+        setMessage("Item added to the receipt. Save the receipt to store it.");
     }
 
     function removeItem(index) {
-        setItems((previous) => {
-            if (previous.length <= 1) return previous;
-
-            return previous.filter(
-                (_, itemIndex) => itemIndex !== index
-            );
-        });
+        setItems((previous) =>
+            previous.filter((_, itemIndex) => itemIndex !== index)
+        );
     }
 
     function resetForm() {
@@ -540,7 +571,9 @@ export default function ItemReceiptsPage() {
             receiptDate: getToday(),
         });
 
-        setItems([createEmptyItem()]);
+        setItems([]);
+        setNewItem(createEmptyItem());
+        setNewItemError("");
         setEditingId(null);
         setCurrentReceipt(null);
         setMode("LIST");
@@ -555,6 +588,7 @@ export default function ItemReceiptsPage() {
 
         setProcessing(true);
         setError("");
+        setMessage("");
 
         try {
             const response = await fetch(
@@ -569,10 +603,7 @@ export default function ItemReceiptsPage() {
                 data.pendingReceipt ||
                 data.data;
 
-            const sourceItems =
-                data.items ||
-                receipt?.items ||
-                [];
+            const sourceItems = data.items || receipt?.items || [];
 
             if (!receipt) {
                 throw new Error(
@@ -619,19 +650,18 @@ export default function ItemReceiptsPage() {
                     ),
 
                     unitCost: String(
-                        item.unit_cost ??
-                        item.unit_price ??
-                        0
+                        item.unit_cost ?? item.unit_price ?? 0
                     ),
 
                     remarks: item.remarks || "",
                 }))
             );
 
-            setMessage(
-                "Pending Item Receipt loaded. Review the actual received quantities before saving."
-            );
+            setNewItem(createEmptyItem());
 
+            setMessage(
+                "Pending Item Receipt loaded. Review actual received quantities before saving."
+            );
         } catch (err) {
             setError(err.message || "Unable to load Pending Item Receipt.");
         } finally {
@@ -653,11 +683,15 @@ export default function ItemReceiptsPage() {
         setMessage("");
         setEditingId(null);
         setCurrentReceipt(null);
+
         setForm({
             ...EMPTY_FORM,
             receiptDate: getToday(),
         });
-        setItems([createEmptyItem()]);
+
+        setItems([]);
+        setNewItem(createEmptyItem());
+        setNewItemError("");
         setMode("CREATE");
     }
 
@@ -678,7 +712,6 @@ export default function ItemReceiptsPage() {
             );
 
             const data = await readResponse(response);
-
             const detail = data.receipt;
 
             if (!detail) {
@@ -704,12 +737,10 @@ export default function ItemReceiptsPage() {
                 remarks: detail.remarks || "",
             });
 
-            setItems(
-                (data.items || []).map(normalizeReceiptItem)
-            );
-
+            setItems((data.items || []).map(normalizeReceiptItem));
+            setNewItem(createEmptyItem());
+            setNewItemError("");
             setMode("EDIT");
-
         } catch (err) {
             setError(err.message || "Failed to load receipt.");
         } finally {
@@ -737,9 +768,135 @@ export default function ItemReceiptsPage() {
             });
 
             setMode("VIEW");
-
         } catch (err) {
             setError(err.message || "Failed to load receipt.");
+        } finally {
+            setProcessing(false);
+        }
+    }
+
+    // --------------------------------------------------------
+    // PURCHASE ORDER ITEM LOADING
+    // --------------------------------------------------------
+
+    async function handlePurchaseOrderChange(purchaseOrderId) {
+        updateForm("purchaseOrderId", purchaseOrderId);
+
+        setError("");
+        setMessage("");
+        setItems([]);
+        setNewItem(createEmptyItem());
+
+        if (!purchaseOrderId) {
+            updateForm("supplierId", "");
+            return;
+        }
+
+        const selected = purchaseOrders.find(
+            (po) =>
+                String(po.purchase_order_id) === String(purchaseOrderId)
+        );
+
+        if (selected?.supplier_id) {
+            updateForm("supplierId", String(selected.supplier_id));
+        }
+
+        setProcessing(true);
+
+        try {
+            const response = await fetch(
+                `/api/purchase-orders/${encodeURIComponent(purchaseOrderId)}`,
+                {
+                    method: "GET",
+                    cache: "no-store",
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                throw new Error(
+                    data.message || "Failed to load Purchase Order details."
+                );
+            }
+
+            const purchaseOrder = data.purchaseOrder;
+
+            if (!purchaseOrder) {
+                throw new Error("Purchase Order details were not found.");
+            }
+
+            if (purchaseOrder.supplier_id) {
+                updateForm(
+                    "supplierId",
+                    String(purchaseOrder.supplier_id)
+                );
+            }
+
+            const orderItems = Array.isArray(purchaseOrder.items)
+                ? purchaseOrder.items
+                : [];
+
+            if (orderItems.length === 0) {
+                throw new Error(
+                    "This Purchase Order does not contain any items."
+                );
+            }
+
+            const populatedItems = orderItems
+                .map((item) => {
+                    const remainingQuantity = Math.max(
+                        0,
+                        Number(
+                            item.remaining_quantity ??
+                            item.quantity ??
+                            0
+                        )
+                    );
+
+                    return {
+                        productId: item.product_id
+                            ? String(item.product_id)
+                            : "",
+
+                        purchaseOrderItemId: String(
+                            item.purchase_order_item_id
+                        ),
+
+                        pendingItemReceiptItemId: "",
+
+                        itemDescription:
+                            item.item_description ||
+                            item.product_name ||
+                            "",
+
+                        uom: item.uom || "PCS",
+
+                        quantityReceived: String(remainingQuantity),
+
+                        unitCost: String(item.unit_price ?? 0),
+
+                        remarks: item.remarks || "",
+                    };
+                })
+                .filter(
+                    (item) => Number(item.quantityReceived) > 0
+                );
+
+            if (populatedItems.length === 0) {
+                throw new Error(
+                    "All items in this Purchase Order have already been received."
+                );
+            }
+
+            setItems(populatedItems);
+
+            setMessage(
+                `${purchaseOrder.purchase_order_number} loaded successfully. ${populatedItems.length} remaining item(s) added.`
+            );
+        } catch (err) {
+            setItems([]);
+            setError(err.message || "Unable to load Purchase Order items.");
         } finally {
             setProcessing(false);
         }
@@ -771,19 +928,52 @@ export default function ItemReceiptsPage() {
                 throw new Error("Receipt date is required.");
             }
 
-            if (form.sourceType === "PENDING_ITEM_RECEIPT" &&
-                !form.pendingItemReceiptId) {
+            if (
+                form.sourceType === "PURCHASE_ORDER" &&
+                !form.purchaseOrderId
+            ) {
+                throw new Error("Please select a Purchase Order.");
+            }
+
+            if (
+                form.sourceType === "PENDING_ITEM_RECEIPT" &&
+                !form.pendingItemReceiptId
+            ) {
                 throw new Error("Please select a Pending Item Receipt.");
+            }
+
+            if (items.length === 0) {
+                throw new Error("Please add at least one item.");
             }
 
             const validItems = items.filter(
                 (item) =>
                     item.itemDescription.trim() &&
+                    Number.isFinite(Number(item.quantityReceived)) &&
                     Number(item.quantityReceived) > 0
             );
 
-            if (validItems.length === 0) {
-                throw new Error("Please add at least one valid item.");
+            if (validItems.length !== items.length) {
+                throw new Error(
+                    "Every item must have a description and a quantity greater than zero."
+                );
+            }
+
+            for (const item of validItems) {
+                if (
+                    !Number.isFinite(Number(item.unitCost)) ||
+                    Number(item.unitCost) < 0
+                ) {
+                    throw new Error(
+                        `Invalid unit cost for ${item.itemDescription}.`
+                    );
+                }
+
+                if (!item.uom.trim()) {
+                    throw new Error(
+                        `Please enter UOM for ${item.itemDescription}.`
+                    );
+                }
             }
 
             const payload = {
@@ -844,7 +1034,6 @@ export default function ItemReceiptsPage() {
             const data = await readResponse(response);
 
             await fetchData();
-
             resetForm();
 
             setMessage(
@@ -852,7 +1041,6 @@ export default function ItemReceiptsPage() {
                     ? "Item Receipt updated successfully."
                     : `Item Receipt ${data.receipt?.receipt_number || ""} created successfully as a draft.`
             );
-
         } catch (err) {
             setError(err.message || "Unable to save Item Receipt.");
         } finally {
@@ -883,13 +1071,10 @@ export default function ItemReceiptsPage() {
         try {
             const response = await fetch(
                 `${API_URL}/${receipt.item_receipt_id}/approve`,
-                {
-                    method: "POST",
-                }
+                { method: "POST" }
             );
 
-            const data = await readResponse(response);
-
+            await readResponse(response);
             await fetchData();
 
             setCurrentReceipt(null);
@@ -898,7 +1083,6 @@ export default function ItemReceiptsPage() {
             setMessage(
                 `${receipt.receipt_number} approved successfully. Inventory has been updated.`
             );
-
         } catch (err) {
             setError(err.message || "Unable to approve receipt.");
         } finally {
@@ -934,19 +1118,13 @@ export default function ItemReceiptsPage() {
         try {
             const response = await fetch(
                 `${API_URL}/${receipt.item_receipt_id}`,
-                {
-                    method: "DELETE",
-                }
+                { method: "DELETE" }
             );
 
             await readResponse(response);
-
             await fetchData();
 
-            setMessage(
-                `${receipt.receipt_number} deleted successfully.`
-            );
-
+            setMessage(`${receipt.receipt_number} deleted successfully.`);
         } catch (err) {
             setError(err.message || "Unable to delete receipt.");
         } finally {
@@ -955,7 +1133,7 @@ export default function ItemReceiptsPage() {
     }
 
     // --------------------------------------------------------
-    // PRINT RECEIPT
+    // PRINT
     // --------------------------------------------------------
 
     function printReceipt(receipt) {
@@ -964,7 +1142,7 @@ export default function ItemReceiptsPage() {
     }
 
     // --------------------------------------------------------
-    // FILTERED RECEIPTS
+    // FILTERS AND SUMMARY
     // --------------------------------------------------------
 
     const filteredReceipts = useMemo(() => {
@@ -997,12 +1175,8 @@ export default function ItemReceiptsPage() {
         });
     }, [receipts, search, statusFilter, sourceFilter]);
 
-    // --------------------------------------------------------
-    // SUMMARY
-    // --------------------------------------------------------
-
-    const summary = useMemo(() => {
-        return {
+    const summary = useMemo(
+        () => ({
             total: receipts.length,
 
             draft: receipts.filter(
@@ -1020,14 +1194,21 @@ export default function ItemReceiptsPage() {
                     total + Number(item.total_quantity || 0),
                 0
             ),
-        };
-    }, [receipts]);
+        }),
+        [receipts]
+    );
 
     const formTotal = items.reduce(
         (total, item) =>
             total +
             Number(item.quantityReceived || 0) *
             Number(item.unitCost || 0),
+        0
+    );
+
+    const formQuantity = items.reduce(
+        (total, item) =>
+            total + Number(item.quantityReceived || 0),
         0
     );
 
@@ -1057,13 +1238,14 @@ export default function ItemReceiptsPage() {
     }
 
     // ========================================================
-    // RECEIPT FORM
+    // CREATE / EDIT FORM
     // ========================================================
 
     if (mode === "CREATE" || mode === "EDIT") {
+        const isManual = form.sourceType === "MANUAL";
+
         return (
             <main className="min-h-screen space-y-6 p-4 sm:p-6 lg:p-8">
-
                 {/* HEADER */}
 
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1078,10 +1260,7 @@ export default function ItemReceiptsPage() {
 
                         <div>
                             <div className="flex items-center gap-2">
-                                <Package
-                                    className="text-blue-600"
-                                    size={23}
-                                />
+                                <Package className="text-blue-600" size={23} />
 
                                 <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
                                     {mode === "EDIT"
@@ -1101,7 +1280,6 @@ export default function ItemReceiptsPage() {
                             <span className="text-sm font-semibold text-slate-500">
                                 {currentReceipt.receipt_number}
                             </span>
-
                             <StatusBadge status={currentReceipt.status} />
                         </div>
                     )}
@@ -1124,7 +1302,6 @@ export default function ItemReceiptsPage() {
                 )}
 
                 <form onSubmit={saveReceipt} className="space-y-6">
-
                     {/* GENERAL INFORMATION */}
 
                     <section className={`${CARD_CLASS} p-5 sm:p-6`}>
@@ -1145,7 +1322,6 @@ export default function ItemReceiptsPage() {
                         </div>
 
                         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-
                             <Field label="Receipt Number">
                                 <input
                                     className={INPUT_CLASS}
@@ -1163,20 +1339,17 @@ export default function ItemReceiptsPage() {
                                     className={INPUT_CLASS}
                                     value={form.receiptDate}
                                     onChange={(event) =>
-                                        updateForm(
-                                            "receiptDate",
-                                            event.target.value
-                                        )
+                                        updateForm("receiptDate", event.target.value)
                                     }
                                     required
                                 />
                             </Field>
 
-
                             <Field label="Source Type" required>
                                 <select
                                     className={INPUT_CLASS}
                                     value={form.sourceType}
+                                    disabled={mode === "EDIT"}
                                     onChange={(event) => {
                                         const sourceType = event.target.value;
 
@@ -1188,40 +1361,32 @@ export default function ItemReceiptsPage() {
                                             supplierId: "",
                                         }));
 
-                                        setItems([createEmptyItem()]);
+                                        setItems([]);
+                                        setNewItem(createEmptyItem());
+                                        setNewItemError("");
                                         setError("");
                                         setMessage("");
                                     }}
                                     required
                                 >
                                     <option value="MANUAL">Manual</option>
-
-                                    <option value="PURCHASE_ORDER">
-                                        Purchase Order
-                                    </option>
-
+                                    <option value="PURCHASE_ORDER">Purchase Order</option>
                                     <option value="PENDING_ITEM_RECEIPT">
                                         Pending Item Receipt
                                     </option>
                                 </select>
                             </Field>
 
-
                             <Field label="Supplier" required>
                                 <select
                                     className={INPUT_CLASS}
                                     value={form.supplierId}
                                     onChange={(event) =>
-                                        updateForm(
-                                            "supplierId",
-                                            event.target.value
-                                        )
+                                        updateForm("supplierId", event.target.value)
                                     }
                                     required
                                 >
-                                    <option value="">
-                                        Select Supplier
-                                    </option>
+                                    <option value="">Select Supplier</option>
 
                                     {suppliers.map((supplier) => (
                                         <option
@@ -1242,16 +1407,11 @@ export default function ItemReceiptsPage() {
                                     className={INPUT_CLASS}
                                     value={form.warehouseId}
                                     onChange={(event) =>
-                                        updateForm(
-                                            "warehouseId",
-                                            event.target.value
-                                        )
+                                        updateForm("warehouseId", event.target.value)
                                     }
                                     required
                                 >
-                                    <option value="">
-                                        Select Warehouse
-                                    </option>
+                                    <option value="">Select Warehouse</option>
 
                                     {warehouses.map((warehouse) => (
                                         <option
@@ -1268,10 +1428,7 @@ export default function ItemReceiptsPage() {
                             </Field>
 
                             {form.sourceType === "PENDING_ITEM_RECEIPT" && (
-                                <Field
-                                    label="Pending Item Receipt"
-                                    required
-                                >
+                                <Field label="Pending Item Receipt" required>
                                     <select
                                         className={INPUT_CLASS}
                                         value={form.pendingItemReceiptId}
@@ -1279,13 +1436,12 @@ export default function ItemReceiptsPage() {
                                         onChange={(event) => {
                                             const id = event.target.value;
 
-                                            updateForm(
-                                                "pendingItemReceiptId",
-                                                id
-                                            );
+                                            updateForm("pendingItemReceiptId", id);
 
                                             if (id) {
                                                 loadPendingReceipt(id);
+                                            } else {
+                                                setItems([]);
                                             }
                                         }}
                                         required
@@ -1317,152 +1473,9 @@ export default function ItemReceiptsPage() {
                                     <select
                                         className={INPUT_CLASS}
                                         value={form.purchaseOrderId}
-                                        onChange={async (event) => {
-                                            const purchaseOrderId = event.target.value;
-
-                                            const selected = purchaseOrders.find(
-                                                (po) =>
-                                                    String(po.purchase_order_id) ===
-                                                    purchaseOrderId
-                                            );
-
-                                            updateForm("purchaseOrderId", purchaseOrderId);
-
-                                            setError("");
-                                            setMessage("");
-
-                                            if (!purchaseOrderId) {
-                                                setItems([createEmptyItem()]);
-                                                updateForm("supplierId", "");
-                                                return;
-                                            }
-
-                                            if (selected?.supplier_id) {
-                                                updateForm(
-                                                    "supplierId",
-                                                    String(selected.supplier_id)
-                                                );
-                                            }
-
-                                            setItems([createEmptyItem()]);
-
-                                            try {
-                                                const response = await fetch(
-                                                    `/api/purchase-orders/${encodeURIComponent(
-                                                        purchaseOrderId
-                                                    )}`,
-                                                    {
-                                                        method: "GET",
-                                                        cache: "no-store",
-                                                    }
-                                                );
-
-                                                const data = await response.json();
-
-                                                if (!response.ok || !data.success) {
-                                                    throw new Error(
-                                                        data.message ||
-                                                        "Failed to load Purchase Order details."
-                                                    );
-                                                }
-
-                                                const purchaseOrder = data.purchaseOrder;
-
-                                                if (!purchaseOrder) {
-                                                    throw new Error(
-                                                        "Purchase Order details were not found."
-                                                    );
-                                                }
-
-                                                if (purchaseOrder.supplier_id) {
-                                                    updateForm(
-                                                        "supplierId",
-                                                        String(purchaseOrder.supplier_id)
-                                                    );
-                                                }
-
-                                                const orderItems = Array.isArray(
-                                                    purchaseOrder.items
-                                                )
-                                                    ? purchaseOrder.items
-                                                    : [];
-
-                                                if (orderItems.length === 0) {
-                                                    throw new Error(
-                                                        "This Purchase Order does not contain any items."
-                                                    );
-                                                }
-
-                                                const populatedItems = orderItems
-                                                    .map((item) => {
-                                                        const remainingQuantity = Math.max(
-                                                            0,
-                                                            Number(
-                                                                item.remaining_quantity ??
-                                                                item.quantity ??
-                                                                0
-                                                            )
-                                                        );
-
-                                                        return {
-                                                            productId: item.product_id
-                                                                ? String(item.product_id)
-                                                                : "",
-
-                                                            purchaseOrderItemId: String(
-                                                                item.purchase_order_item_id
-                                                            ),
-
-                                                            pendingItemReceiptItemId: "",
-
-                                                            itemDescription:
-                                                                item.item_description ||
-                                                                item.product_name ||
-                                                                "",
-
-                                                            uom: item.uom || "PCS",
-
-                                                            quantityReceived: String(
-                                                                remainingQuantity
-                                                            ),
-
-                                                            unitCost: String(
-                                                                item.unit_price ?? 0
-                                                            ),
-
-                                                            remarks: item.remarks || "",
-                                                        };
-                                                    })
-                                                    .filter(
-                                                        (item) =>
-                                                            Number(item.quantityReceived) > 0
-                                                    );
-
-                                                if (populatedItems.length === 0) {
-                                                    throw new Error(
-                                                        "All items in this Purchase Order have already been received."
-                                                    );
-                                                }
-
-                                                setItems(populatedItems);
-
-                                                setMessage(
-                                                    `${purchaseOrder.purchase_order_number} loaded successfully. ${populatedItems.length} remaining item(s) added.`
-                                                );
-                                            } catch (error) {
-                                                console.error(
-                                                    "Purchase Order item loading error:",
-                                                    error
-                                                );
-
-                                                setItems([createEmptyItem()]);
-
-                                                setError(
-                                                    error.message ||
-                                                    "Unable to load Purchase Order items."
-                                                );
-                                            }
-                                        }}
+                                        onChange={(event) =>
+                                            handlePurchaseOrderChange(event.target.value)
+                                        }
                                         required
                                     >
                                         <option value="">Select Purchase Order</option>
@@ -1480,7 +1493,6 @@ export default function ItemReceiptsPage() {
                                     </select>
                                 </Field>
                             )}
-
                         </div>
 
                         <div className="mt-5">
@@ -1491,17 +1503,174 @@ export default function ItemReceiptsPage() {
                                     placeholder="Enter receipt notes or comments..."
                                     value={form.remarks}
                                     onChange={(event) =>
-                                        updateForm(
-                                            "remarks",
-                                            event.target.value
-                                        )
+                                        updateForm("remarks", event.target.value)
                                     }
                                 />
                             </Field>
                         </div>
                     </section>
 
-                    {/* ITEMS */}
+                    {/* QUICK ITEM ENTRY */}
+
+                    {isManual && (
+                        <section className={`${CARD_CLASS} overflow-hidden`}>
+                            <div className="border-b border-slate-200 p-5 dark:border-slate-800">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                                        <Plus size={21} />
+                                    </div>
+
+                                    <div>
+                                        <h2 className="font-bold text-slate-900 dark:text-white">
+                                            Quick Item Entry
+                                        </h2>
+
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            Enter one item and add it to the receipt list.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4 p-5">
+                                {newItemError && (
+                                    <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                                        {newItemError}
+                                    </div>
+                                )}
+
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                                    <div className="md:col-span-2">
+                                        <Field label="Product">
+                                            <select
+                                                className={INPUT_CLASS}
+                                                value={newItem.productId}
+                                                onChange={(event) =>
+                                                    selectNewProduct(event.target.value)
+                                                }
+                                            >
+                                                <option value="">
+                                                    Select Product (Optional)
+                                                </option>
+
+                                                {products.map((product) => (
+                                                    <option
+                                                        key={getProductId(product)}
+                                                        value={getProductId(product)}
+                                                    >
+                                                        {product.sku
+                                                            ? `${product.sku} - `
+                                                            : ""}
+                                                        {getProductName(product)}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </Field>
+                                    </div>
+
+                                    <Field label="UOM" required>
+                                        <input
+                                            className={INPUT_CLASS}
+                                            value={newItem.uom}
+                                            onChange={(event) =>
+                                                updateNewItem("uom", event.target.value)
+                                            }
+                                            placeholder="PCS"
+                                        />
+                                    </Field>
+
+                                    <Field label="Received Quantity" required>
+                                        <input
+                                            type="number"
+                                            min="0.0001"
+                                            step="any"
+                                            className={INPUT_CLASS}
+                                            value={newItem.quantityReceived}
+                                            onChange={(event) =>
+                                                updateNewItem(
+                                                    "quantityReceived",
+                                                    event.target.value
+                                                )
+                                            }
+                                        />
+                                    </Field>
+
+                                    <div className="md:col-span-2">
+                                        <Field label="Item Description" required>
+                                            <input
+                                                className={INPUT_CLASS}
+                                                value={newItem.itemDescription}
+                                                onChange={(event) =>
+                                                    updateNewItem(
+                                                        "itemDescription",
+                                                        event.target.value
+                                                    )
+                                                }
+                                                placeholder="Enter item description"
+                                            />
+                                        </Field>
+                                    </div>
+
+                                    <Field label="Unit Cost">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="any"
+                                            className={INPUT_CLASS}
+                                            value={newItem.unitCost}
+                                            onChange={(event) =>
+                                                updateNewItem("unitCost", event.target.value)
+                                            }
+                                        />
+                                    </Field>
+
+                                    <Field label="Line Total">
+                                        <input
+                                            readOnly
+                                            className={`${INPUT_CLASS} bg-slate-50 font-bold dark:bg-slate-800`}
+                                            value={formatCurrency(
+                                                Number(newItem.quantityReceived || 0) *
+                                                Number(newItem.unitCost || 0)
+                                            )}
+                                        />
+                                    </Field>
+
+                                    <div className="md:col-span-4">
+                                        <Field label="Item Remarks">
+                                            <input
+                                                className={INPUT_CLASS}
+                                                value={newItem.remarks}
+                                                onChange={(event) =>
+                                                    updateNewItem(
+                                                        "remarks",
+                                                        event.target.value
+                                                    )
+                                                }
+                                                placeholder="Optional item remarks"
+                                            />
+                                        </Field>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        The item will be added to the list below. It is saved when you save the receipt.
+                                    </p>
+
+                                    <button
+                                        type="button"
+                                        onClick={addItem}
+                                        className={PRIMARY_BUTTON}
+                                    >
+                                        <Plus size={17} />
+                                        Add Item to Receipt
+                                    </button>
+                                </div>
+                            </div>
+                        </section>
+                    )}
+
+                    {/* RECEIVED ITEMS */}
 
                     <section className={`${CARD_CLASS} overflow-hidden`}>
                         <div className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
@@ -1516,190 +1685,201 @@ export default function ItemReceiptsPage() {
                                     </h2>
 
                                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                                        Enter the actual quantities physically received.
+                                        {items.length} item(s) added to this receipt.
                                     </p>
                                 </div>
                             </div>
 
-                            <button
-                                type="button"
-                                onClick={addItem}
-                                className={SECONDARY_BUTTON}
-                            >
-                                <Plus size={17} />
-                                Add Item
-                            </button>
+                            {isManual && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setNewItem(createEmptyItem());
+                                        setNewItemError("");
+                                        document.getElementById("quick-item-product")?.focus();
+                                    }}
+                                    className={SECONDARY_BUTTON}
+                                >
+                                    <Plus size={17} />
+                                    New Quick Entry
+                                </button>
+                            )}
                         </div>
 
-                        <div className="space-y-4 p-5">
+                        {items.length === 0 ? (
+                            <div className="flex min-h-48 flex-col items-center justify-center px-5 text-center">
+                                <Package size={34} className="text-slate-300" />
 
-                            {items.map((item, index) => (
-                                <div
-                                    key={index}
-                                    className="rounded-xl border border-slate-200 p-4 dark:border-slate-700"
-                                >
-                                    <div className="mb-4 flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-xs font-bold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                                                {index + 1}
-                                            </span>
+                                <h3 className="mt-3 font-bold text-slate-800 dark:text-white">
+                                    No Items Added
+                                </h3>
 
-                                            <h3 className="text-sm font-bold text-slate-800 dark:text-white">
-                                                Item {index + 1}
-                                            </h3>
-                                        </div>
+                                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                                    {isManual
+                                        ? "Use Quick Item Entry above to add your first item."
+                                        : "Select a source document to load its items."}
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-4 p-5">
+                                {items.map((item, index) => (
+                                    <div
+                                        key={`${item.purchaseOrderItemId || item.pendingItemReceiptItemId || item.productId || "item"}-${index}`}
+                                        className="rounded-xl border border-slate-200 p-4 dark:border-slate-700"
+                                    >
+                                        <div className="mb-4 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-xs font-bold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                                                    {index + 1}
+                                                </span>
 
-                                        <button
-                                            type="button"
-                                            onClick={() => removeItem(index)}
-                                            disabled={items.length <= 1}
-                                            className="rounded-lg p-2 text-red-500 transition hover:bg-red-50 disabled:opacity-30 dark:hover:bg-red-950/30"
-                                            title="Remove item"
-                                        >
-                                            <Trash2 size={17} />
-                                        </button>
-                                    </div>
+                                                <h3 className="text-sm font-bold text-slate-800 dark:text-white">
+                                                    Item {index + 1}
+                                                </h3>
+                                            </div>
 
-                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-
-                                        <div className="md:col-span-2">
-                                            <Field label="Product">
-                                                <select
-                                                    className={INPUT_CLASS}
-                                                    value={item.productId}
-                                                    onChange={(event) =>
-                                                        selectProduct(
-                                                            index,
-                                                            event.target.value
-                                                        )
-                                                    }
-                                                >
-                                                    <option value="">
-                                                        Select Product
-                                                    </option>
-
-                                                    {products.map((product) => (
-                                                        <option
-                                                            key={getProductId(product)}
-                                                            value={getProductId(product)}
-                                                        >
-                                                            {product.sku
-                                                                ? `${product.sku} - `
-                                                                : ""}
-                                                            {getProductName(product)}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            </Field>
-                                        </div>
-
-                                        <Field label="UOM">
-                                            <input
-                                                className={INPUT_CLASS}
-                                                value={item.uom}
-                                                onChange={(event) =>
-                                                    updateItem(
-                                                        index,
-                                                        "uom",
-                                                        event.target.value
-                                                    )
-                                                }
-                                                placeholder="PCS"
-                                            />
-                                        </Field>
-
-                                        <Field
-                                            label="Received Quantity"
-                                            required
-                                        >
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                step="1"
-                                                className={INPUT_CLASS}
-                                                value={item.quantityReceived}
-                                                onChange={(event) =>
-                                                    updateItem(
-                                                        index,
-                                                        "quantityReceived",
-                                                        event.target.value
-                                                    )
-                                                }
-                                                required
-                                            />
-                                        </Field>
-
-                                        <div className="md:col-span-2">
-                                            <Field
-                                                label="Item Description"
-                                                required
+                                            <button
+                                                type="button"
+                                                onClick={() => removeItem(index)}
+                                                className="rounded-lg p-2 text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950/30"
+                                                title="Remove item"
                                             >
+                                                <Trash2 size={17} />
+                                            </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                                            <div className="md:col-span-2">
+                                                <Field label="Product">
+                                                    <select
+                                                        className={INPUT_CLASS}
+                                                        value={item.productId}
+                                                        onChange={(event) =>
+                                                            selectProduct(
+                                                                index,
+                                                                event.target.value
+                                                            )
+                                                        }
+                                                    >
+                                                        <option value="">
+                                                            Select Product
+                                                        </option>
+
+                                                        {products.map((product) => (
+                                                            <option
+                                                                key={getProductId(product)}
+                                                                value={getProductId(product)}
+                                                            >
+                                                                {product.sku
+                                                                    ? `${product.sku} - `
+                                                                    : ""}
+                                                                {getProductName(product)}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </Field>
+                                            </div>
+
+                                            <Field label="UOM" required>
                                                 <input
                                                     className={INPUT_CLASS}
-                                                    value={item.itemDescription}
+                                                    value={item.uom}
                                                     onChange={(event) =>
                                                         updateItem(
                                                             index,
-                                                            "itemDescription",
+                                                            "uom",
                                                             event.target.value
                                                         )
                                                     }
-                                                    placeholder="Product description"
+                                                />
+                                            </Field>
+
+                                            <Field label="Received Quantity" required>
+                                                <input
+                                                    type="number"
+                                                    min="0.0001"
+                                                    step="any"
+                                                    className={INPUT_CLASS}
+                                                    value={item.quantityReceived}
+                                                    onChange={(event) =>
+                                                        updateItem(
+                                                            index,
+                                                            "quantityReceived",
+                                                            event.target.value
+                                                        )
+                                                    }
                                                     required
                                                 />
                                             </Field>
-                                        </div>
 
-                                        <Field label="Unit Cost">
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                step="1"
-                                                className={INPUT_CLASS}
-                                                value={item.unitCost}
-                                                onChange={(event) =>
-                                                    updateItem(
-                                                        index,
-                                                        "unitCost",
-                                                        event.target.value
-                                                    )
-                                                }
-                                            />
-                                        </Field>
+                                            <div className="md:col-span-2">
+                                                <Field label="Item Description" required>
+                                                    <input
+                                                        className={INPUT_CLASS}
+                                                        value={item.itemDescription}
+                                                        onChange={(event) =>
+                                                            updateItem(
+                                                                index,
+                                                                "itemDescription",
+                                                                event.target.value
+                                                            )
+                                                        }
+                                                        required
+                                                    />
+                                                </Field>
+                                            </div>
 
-                                        <Field label="Line Total">
-                                            <input
-                                                readOnly
-                                                className={`${INPUT_CLASS} bg-slate-50 font-bold dark:bg-slate-800`}
-                                                value={formatCurrency(
-                                                    Number(item.quantityReceived || 0) *
-                                                    Number(item.unitCost || 0)
-                                                )}
-                                            />
-                                        </Field>
-
-                                        <div className="md:col-span-4">
-                                            <Field label="Item Remarks">
+                                            <Field label="Unit Cost">
                                                 <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="any"
                                                     className={INPUT_CLASS}
-                                                    value={item.remarks}
+                                                    value={item.unitCost}
                                                     onChange={(event) =>
                                                         updateItem(
                                                             index,
-                                                            "remarks",
+                                                            "unitCost",
                                                             event.target.value
                                                         )
                                                     }
-                                                    placeholder="Optional item remarks"
                                                 />
                                             </Field>
+
+                                            <Field label="Line Total">
+                                                <input
+                                                    readOnly
+                                                    className={`${INPUT_CLASS} bg-slate-50 font-bold dark:bg-slate-800`}
+                                                    value={formatCurrency(
+                                                        Number(item.quantityReceived || 0) *
+                                                        Number(item.unitCost || 0)
+                                                    )}
+                                                />
+                                            </Field>
+
+                                            <div className="md:col-span-4">
+                                                <Field label="Item Remarks">
+                                                    <input
+                                                        className={INPUT_CLASS}
+                                                        value={item.remarks}
+                                                        onChange={(event) =>
+                                                            updateItem(
+                                                                index,
+                                                                "remarks",
+                                                                event.target.value
+                                                            )
+                                                        }
+                                                        placeholder="Optional item remarks"
+                                                    />
+                                                </Field>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        )}
 
-                        {/* TOTAL */}
+                        {/* TOTALS */}
 
                         <div className="border-t border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-950">
                             <div className="ml-auto max-w-sm space-y-3">
@@ -1713,14 +1893,7 @@ export default function ItemReceiptsPage() {
                                 <div className="flex justify-between text-sm text-slate-500 dark:text-slate-400">
                                     <span>Total Quantity</span>
                                     <span className="font-semibold text-slate-800 dark:text-white">
-                                        {formatNumber(
-                                            items.reduce(
-                                                (total, item) =>
-                                                    total +
-                                                    Number(item.quantityReceived || 0),
-                                                0
-                                            )
-                                        )}
+                                        {formatNumber(formQuantity)}
                                     </span>
                                 </div>
 
@@ -1768,10 +1941,7 @@ export default function ItemReceiptsPage() {
                                 className={PRIMARY_BUTTON}
                             >
                                 {saving ? (
-                                    <LoaderCircle
-                                        size={17}
-                                        className="animate-spin"
-                                    />
+                                    <LoaderCircle size={17} className="animate-spin" />
                                 ) : (
                                     <Save size={17} />
                                 )}
@@ -1798,7 +1968,6 @@ export default function ItemReceiptsPage() {
 
         return (
             <main className="min-h-screen space-y-6 p-4 sm:p-6 lg:p-8 print:bg-white print:p-0">
-
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between print:hidden">
                     <div className="flex items-center gap-3">
                         <button
@@ -1872,7 +2041,6 @@ export default function ItemReceiptsPage() {
                         <div>
                             <div className="flex items-center gap-2">
                                 <Package className="text-blue-600" size={25} />
-
                                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">
                                     ITEM RECEIPT
                                 </h2>
@@ -1895,65 +2063,24 @@ export default function ItemReceiptsPage() {
                     </div>
 
                     <div className="grid grid-cols-1 gap-6 py-6 sm:grid-cols-2 lg:grid-cols-3">
-                        <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                Supplier
-                            </p>
+                        {[
+                            ["Supplier", currentReceipt.supplier_name],
+                            ["Warehouse", currentReceipt.warehouse_name],
+                            ["Receipt Date", formatDate(currentReceipt.receipt_date)],
+                            ["Source", getSourceLabel(currentReceipt.source_type)],
+                            ["Purchase Order", currentReceipt.purchase_order_number],
+                            ["Pending Receipt", currentReceipt.pending_receipt_number],
+                        ].map(([label, value]) => (
+                            <div key={label}>
+                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    {label}
+                                </p>
 
-                            <p className="mt-2 font-bold text-slate-900 dark:text-white">
-                                {currentReceipt.supplier_name || "-"}
-                            </p>
-                        </div>
-
-                        <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                Warehouse
-                            </p>
-
-                            <p className="mt-2 font-bold text-slate-900 dark:text-white">
-                                {currentReceipt.warehouse_name || "-"}
-                            </p>
-                        </div>
-
-                        <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                Receipt Date
-                            </p>
-
-                            <p className="mt-2 font-bold text-slate-900 dark:text-white">
-                                {formatDate(currentReceipt.receipt_date)}
-                            </p>
-                        </div>
-
-                        <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                Source
-                            </p>
-
-                            <p className="mt-2 font-bold text-slate-900 dark:text-white">
-                                {getSourceLabel(currentReceipt.source_type)}
-                            </p>
-                        </div>
-
-                        <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                Purchase Order
-                            </p>
-
-                            <p className="mt-2 font-bold text-slate-900 dark:text-white">
-                                {currentReceipt.purchase_order_number || "-"}
-                            </p>
-                        </div>
-
-                        <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                Pending Receipt
-                            </p>
-
-                            <p className="mt-2 font-bold text-slate-900 dark:text-white">
-                                {currentReceipt.pending_receipt_number || "-"}
-                            </p>
-                        </div>
+                                <p className="mt-2 font-bold text-slate-900 dark:text-white">
+                                    {value || "-"}
+                                </p>
+                            </div>
+                        ))}
                     </div>
 
                     <div className="overflow-x-auto">
@@ -1980,9 +2107,7 @@ export default function ItemReceiptsPage() {
                                         </td>
 
                                         <td className="px-4 py-4 font-semibold text-slate-900 dark:text-white">
-                                            {item.item_description ||
-                                                item.product_name ||
-                                                "-"}
+                                            {item.item_description || item.product_name || "-"}
                                         </td>
 
                                         <td className="px-4 py-4 text-slate-600 dark:text-slate-300">
@@ -2075,25 +2200,22 @@ export default function ItemReceiptsPage() {
 
     return (
         <main className="min-h-screen space-y-6 p-4 sm:p-6 lg:p-8">
-
             {/* PAGE HEADER */}
 
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                            <Package size={25} />
-                        </div>
+                <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                        <Package size={25} />
+                    </div>
 
-                        <div>
-                            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-                                Item Receipts
-                            </h1>
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                            Item Receipts
+                        </h1>
 
-                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                                Manage physical goods received from suppliers.
-                            </p>
-                        </div>
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            Manage physical goods received from suppliers.
+                        </p>
                     </div>
                 </div>
 
@@ -2156,7 +2278,7 @@ export default function ItemReceiptsPage() {
                 </div>
             )}
 
-            {/* SUMMARY CARDS */}
+            {/* SUMMARY */}
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <SummaryCard
@@ -2196,10 +2318,7 @@ export default function ItemReceiptsPage() {
 
             <section className={`${CARD_CLASS} p-5`}>
                 <div className="mb-4 flex items-center gap-2">
-                    <Filter
-                        size={19}
-                        className="text-slate-500"
-                    />
+                    <Filter size={19} className="text-slate-500" />
 
                     <h2 className="font-bold text-slate-900 dark:text-white">
                         Search and Filters
@@ -2217,18 +2336,14 @@ export default function ItemReceiptsPage() {
                             className={`${INPUT_CLASS} pl-10`}
                             placeholder="Search receipt, supplier, warehouse..."
                             value={search}
-                            onChange={(event) =>
-                                setSearch(event.target.value)
-                            }
+                            onChange={(event) => setSearch(event.target.value)}
                         />
                     </div>
 
                     <select
                         className={INPUT_CLASS}
                         value={statusFilter}
-                        onChange={(event) =>
-                            setStatusFilter(event.target.value)
-                        }
+                        onChange={(event) => setStatusFilter(event.target.value)}
                     >
                         <option value="ALL">All Statuses</option>
                         <option value="DRAFT">Draft</option>
@@ -2239,9 +2354,7 @@ export default function ItemReceiptsPage() {
                     <select
                         className={INPUT_CLASS}
                         value={sourceFilter}
-                        onChange={(event) =>
-                            setSourceFilter(event.target.value)
-                        }
+                        onChange={(event) => setSourceFilter(event.target.value)}
                     >
                         <option value="ALL">All Sources</option>
                         <option value="MANUAL">Manual</option>
@@ -2349,10 +2462,7 @@ export default function ItemReceiptsPage() {
 
                                         <td className="px-5 py-4 text-slate-600 dark:text-slate-300">
                                             <div className="flex items-center gap-2">
-                                                <Warehouse
-                                                    size={15}
-                                                    className="text-slate-400"
-                                                />
+                                                <Warehouse size={15} className="text-slate-400" />
                                                 {receipt.warehouse_name || "-"}
                                             </div>
                                         </td>
@@ -2457,6 +2567,8 @@ export default function ItemReceiptsPage() {
                     </p>
                 </div>
             </div>
+
+            {/* PROCESSING OVERLAY */}
 
             {processing && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[2px]">

@@ -1,10 +1,16 @@
+
 import { NextResponse } from "next/server";
 
 import pool from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { hasPermission } from "@/lib/permissions";
+
+import {
+  hasPermission,
+  invalidateRolePermissions,
+} from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const noCacheHeaders = {
   "Cache-Control": "no-store, no-cache, must-revalidate",
@@ -35,7 +41,11 @@ async function getAuthenticatedUser() {
     };
   }
 
-  if (!user.userId || !user.companyId || !user.roleId) {
+  if (
+    !user.userId ||
+    !user.companyId ||
+    !user.roleId
+  ) {
     return {
       error: json(
         {
@@ -51,11 +61,13 @@ async function getAuthenticatedUser() {
   return { user };
 }
 
-// Verify that the acting user's role is the global system ADMIN.
+/**
+ * Verify the acting user's role is the global system ADMIN.
+ */
 async function isSystemAdmin(roleId) {
   const result = await pool.query(
     `
-      SELECT role_id
+      SELECT 1
       FROM roles
       WHERE role_id = $1
         AND role_name = 'ADMIN'
@@ -66,10 +78,12 @@ async function isSystemAdmin(roleId) {
     [roleId]
   );
 
-  return result.rows.length > 0;
+  return result.rowCount > 0;
 }
 
-// Find a role that is global or belongs to the acting user's company.
+/**
+ * Find a global role or a role belonging to this company.
+ */
 async function getTargetRole(roleId, companyId) {
   const result = await pool.query(
     `
@@ -80,7 +94,10 @@ async function getTargetRole(roleId, companyId) {
         company_id
       FROM roles
       WHERE role_id = $1
-        AND (company_id IS NULL OR company_id = $2)
+        AND (
+          company_id IS NULL
+          OR company_id = $2
+        )
       LIMIT 1;
     `,
     [roleId, companyId]
@@ -89,15 +106,19 @@ async function getTargetRole(roleId, companyId) {
   return result.rows[0] || null;
 }
 
-// A system ADMIN can manage the matrix.
-// Other users need the user_rights view permission to load it.
+/**
+ * Global system ADMIN can manage user rights.
+ * Other users need user_rights permission.
+ */
 async function canManageUserRights(user) {
   if (await isSystemAdmin(user.roleId)) {
     return true;
   }
 
-  return Boolean(
-    await hasPermission(user.roleId, "user_rights", "view")
+  return hasPermission(
+    user.roleId,
+    "user_rights",
+    "view"
   );
 }
 
@@ -114,22 +135,29 @@ export async function GET(request) {
     }
 
     const { user } = auth;
+
     const allowed = await canManageUserRights(user);
 
     if (!allowed) {
       return json(
         {
           success: false,
-          message: "You do not have permission to view user rights.",
+          message:
+            "You do not have permission to view user rights.",
         },
         { status: 403 }
       );
     }
 
     const { searchParams } = new URL(request.url);
+
     const roleId = searchParams.get("roleId");
 
-    if (!roleId || !/^\d+$/.test(roleId) || Number(roleId) <= 0) {
+    if (
+      !roleId ||
+      !/^\d+$/.test(roleId) ||
+      Number(roleId) <= 0
+    ) {
       return json(
         {
           success: false,
@@ -148,7 +176,8 @@ export async function GET(request) {
       return json(
         {
           success: false,
-          message: "The selected role was not found for your company.",
+          message:
+            "The selected role was not found for your company.",
         },
         { status: 404 }
       );
@@ -167,15 +196,21 @@ export async function GET(request) {
           p.permission_name,
           p.module,
           p.description,
+
           COALESCE(rp.can_view, FALSE) AS can_view,
           COALESCE(rp.can_create, FALSE) AS can_create,
           COALESCE(rp.can_update, FALSE) AS can_update,
           COALESCE(rp.can_delete, FALSE) AS can_delete
+
         FROM permissions p
+
         LEFT JOIN role_permissions rp
           ON rp.permission_id = p.permission_id
          AND rp.role_id = $1
-        ORDER BY p.module, p.permission_id;
+
+        ORDER BY
+          p.module,
+          p.permission_id;
       `,
       [targetRole.role_id]
     );
@@ -187,7 +222,10 @@ export async function GET(request) {
       permissions: result.rows,
     });
   } catch (error) {
-    console.error("GET ROLE PERMISSIONS ERROR:", error);
+    console.error(
+      "GET ROLE PERMISSIONS ERROR:",
+      error
+    );
 
     return json(
       {
@@ -201,12 +239,6 @@ export async function GET(request) {
 
 // =========================================================
 // UPDATE PERMISSION FOR A ROLE
-//
-// The global system ADMIN may update the permission records
-// of the ADMIN role itself, as well as other accessible roles.
-//
-// System role identity and deletion protection should be
-// enforced in the roles API, separately from permission edits.
 // =========================================================
 
 export async function PUT(request) {
@@ -218,10 +250,12 @@ export async function PUT(request) {
     }
 
     const { user } = auth;
-    const actingUserIsAdmin = await isSystemAdmin(user.roleId);
 
-    // Only the acting system ADMIN bypasses the user-rights
-    // update permission check.
+    const actingUserIsAdmin = await isSystemAdmin(
+      user.roleId
+    );
+
+    // Only the global system ADMIN bypasses this check.
     if (!actingUserIsAdmin) {
       const allowed = await hasPermission(
         user.roleId,
@@ -262,7 +296,7 @@ export async function PUT(request) {
       canCreate,
       canUpdate,
       canDelete,
-    } = body;
+    } = body || {};
 
     const targetRoleId = Number(roleId);
     const targetPermissionId = Number(permissionId);
@@ -276,28 +310,37 @@ export async function PUT(request) {
       return json(
         {
           success: false,
-          message: "A valid role and permission are required.",
+          message:
+            "A valid role and permission are required.",
         },
         { status: 400 }
       );
     }
 
-    // Require explicit booleans. Do not silently convert missing
-    // or invalid values to false.
-    for (const value of [canView, canCreate, canUpdate, canDelete]) {
-      if (typeof value !== "boolean") {
-        return json(
-          {
-            success: false,
-            message: "All permission values must be true or false.",
-          },
-          { status: 400 }
-        );
-      }
+    // All four permission values must be explicit booleans.
+    const permissionValues = [
+      canView,
+      canCreate,
+      canUpdate,
+      canDelete,
+    ];
+
+    if (
+      permissionValues.some(
+        (value) => typeof value !== "boolean"
+      )
+    ) {
+      return json(
+        {
+          success: false,
+          message:
+            "All permission values must be true or false.",
+        },
+        { status: 400 }
+      );
     }
 
-    // The target must be a global role or a role in this company.
-    // This intentionally does not reject the global ADMIN role.
+    // Validate target role and company ownership.
     const targetRole = await getTargetRole(
       targetRoleId,
       user.companyId
@@ -307,23 +350,61 @@ export async function PUT(request) {
       return json(
         {
           success: false,
-          message: "The selected role was not found for your company.",
+          message:
+            "The selected role was not found for your company.",
         },
         { status: 404 }
       );
     }
 
-    const permissionExists = await pool.query(
+    // Insert or update only if the requested permission exists.
+    const result = await pool.query(
       `
-        SELECT permission_id
-        FROM permissions
-        WHERE permission_id = $1
-        LIMIT 1;
+        INSERT INTO role_permissions (
+          role_id,
+          permission_id,
+          can_view,
+          can_create,
+          can_update,
+          can_delete
+        )
+        SELECT
+          $1,
+          p.permission_id,
+          $3,
+          $4,
+          $5,
+          $6
+        FROM permissions p
+        WHERE p.permission_id = $2
+
+        ON CONFLICT (role_id, permission_id)
+        DO UPDATE SET
+          can_view = EXCLUDED.can_view,
+          can_create = EXCLUDED.can_create,
+          can_update = EXCLUDED.can_update,
+          can_delete = EXCLUDED.can_delete,
+          updated_at = CURRENT_TIMESTAMP
+
+        RETURNING
+          role_id,
+          permission_id,
+          can_view,
+          can_create,
+          can_update,
+          can_delete;
       `,
-      [targetPermissionId]
+      [
+        targetRoleId,
+        targetPermissionId,
+        canView,
+        canCreate,
+        canUpdate,
+        canDelete,
+      ]
     );
 
-    if (permissionExists.rows.length === 0) {
+    if (result.rowCount === 0) {
       return json(
         {
           success: false,
@@ -333,53 +414,8 @@ export async function PUT(request) {
       );
     }
 
-    console.log("[PERMISSION UPDATE REQUEST]", {
-  targetRoleId,
-  targetPermissionId,
-  permissionKey: permissionExists.rows[0]?.permission_key ?? null,
-  canView,
-  canCreate,
-  canUpdate,
-  canDelete,
-});
-
-const result = await pool.query(
-  `
-    INSERT INTO role_permissions (
-      role_id,
-      permission_id,
-      can_view,
-      can_create,
-      can_update,
-      can_delete
-    )
-    VALUES ($1, $2, $3, $4, $5, $6)
-    ON CONFLICT (role_id, permission_id)
-    DO UPDATE SET
-      can_view = EXCLUDED.can_view,
-      can_create = EXCLUDED.can_create,
-      can_update = EXCLUDED.can_update,
-      can_delete = EXCLUDED.can_delete,
-      updated_at = CURRENT_TIMESTAMP
-    RETURNING
-      role_id,
-      permission_id,
-      can_view,
-      can_create,
-      can_update,
-      can_delete;
-  `,
-  [
-    targetRoleId,
-    targetPermissionId,
-    canView,
-    canCreate,
-    canUpdate,
-    canDelete,
-  ]
-);
-
-console.log("[PERMISSION UPDATE DATABASE RESULT]", result.rows[0]);
+    // Immediately invalidate the updated role's cache.
+    invalidateRolePermissions(targetRoleId);
 
     return json({
       success: true,
@@ -387,13 +423,17 @@ console.log("[PERMISSION UPDATE DATABASE RESULT]", result.rows[0]);
       permission: result.rows[0],
     });
   } catch (error) {
-    console.error("UPDATE ROLE PERMISSION ERROR:", error);
+    console.error(
+      "UPDATE ROLE PERMISSION ERROR:",
+      error
+    );
 
     if (error.code === "23503") {
       return json(
         {
           success: false,
-          message: "The selected role or permission does not exist.",
+          message:
+            "The selected role or permission does not exist.",
         },
         { status: 400 }
       );

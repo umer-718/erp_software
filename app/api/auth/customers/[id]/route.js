@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 
@@ -12,6 +13,7 @@ export async function PUT(request, { params }) {
       phone,
       email,
       address,
+      receivableAccountId,
       openingBalance,
       creditLimit,
       isActive,
@@ -27,6 +29,16 @@ export async function PUT(request, { params }) {
       );
     }
 
+    if (!receivableAccountId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Receivable account is required.",
+        },
+        { status: 400 }
+      );
+    }
+
     const result = await pool.query(
       `
       UPDATE customers
@@ -36,11 +48,12 @@ export async function PUT(request, { params }) {
         phone = $3,
         email = $4,
         address = $5,
-        opening_balance = $6,
-        credit_limit = $7,
-        is_active = $8,
+        receivable_account_id = $6,
+        opening_balance = $7,
+        credit_limit = $8,
+        is_active = $9,
         updated_at = CURRENT_TIMESTAMP
-      WHERE customer_id = $9
+      WHERE customer_id = $10
       RETURNING *
       `,
       [
@@ -49,6 +62,7 @@ export async function PUT(request, { params }) {
         phone || null,
         email || null,
         address || null,
+        Number(receivableAccountId),
         Number(openingBalance) || 0,
         Number(creditLimit) || 0,
         isActive !== false,

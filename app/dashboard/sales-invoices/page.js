@@ -338,6 +338,7 @@ export default function SalesInvoicesPage() {
   const [products, setProducts] = useState([]);
   const [deliveryChallans, setDeliveryChallans] = useState([]);
   const [deliveryChallanId, setDeliveryChallanId] = useState("");
+  const [invoiceCreationMode, setInvoiceCreationMode] = useState("manual");
   const [loadingChallan, setLoadingChallan] = useState(false);
 
   // Quick-add item bar
@@ -709,9 +710,9 @@ export default function SalesInvoicesPage() {
     const itemTax = Number(quick.tax) || 0;
 
     if (!Number.isSafeInteger(quantity) || quantity <= 0) {
-  setQuickError("Quantity must be a positive whole number. Decimals are not allowed.");
-  return;
-}
+      setQuickError("Quantity must be a positive whole number. Decimals are not allowed.");
+      return;
+    }
 
     if (!Number.isFinite(unitPrice) || unitPrice < 0) {
       setQuickError("Unit price cannot be negative.");
@@ -762,6 +763,7 @@ export default function SalesInvoicesPage() {
   function resetForm() {
     setEditingInvoiceId(null);
     setDeliveryChallanId("");
+    setInvoiceCreationMode("manual");
     setInvoiceNumber("");
     setCustomerId("");
     setWarehouseId("");
@@ -771,7 +773,7 @@ export default function SalesInvoicesPage() {
     setNotes("");
     setItems([]);
     setQuick({ search: "", quantity: 1, unitPrice: 0, discount: 0, tax: 0 });
-setQuickError("");
+    setQuickError("");
     setShowInvoiceForm(false);
   }
 
@@ -876,7 +878,15 @@ setQuickError("");
 
   async function loadDeliveryChallan(challanId) {
     setDeliveryChallanId(challanId);
-    if (!challanId) return;
+
+    if (!challanId) {
+      setCustomerId("");
+      setWarehouseId("");
+      setItems([]);
+      setNotes("");
+      setError("");
+      return;
+    }
 
     setLoadingChallan(true);
     setError("");
@@ -957,6 +967,7 @@ setQuickError("");
     );
   });
 
+
   function startManualInvoice() {
     if (!permissions.can_create) {
       setError("You do not have permission to create sales invoices.");
@@ -964,6 +975,7 @@ setQuickError("");
     }
 
     resetForm();
+    setInvoiceCreationMode("manual");
     setError("");
     setSuccessMessage("");
     setShowInvoiceForm(true);
@@ -976,6 +988,7 @@ setQuickError("");
     }
 
     resetForm();
+    setInvoiceCreationMode("delivery_challan");
     setError("");
     setSuccessMessage("");
     setShowInvoiceForm(true);
@@ -1019,11 +1032,11 @@ setQuickError("");
       }
 
       if (!Number.isSafeInteger(Number(item.quantity)) || Number(item.quantity) <= 0) {
-  setError(
-    "Every item quantity must be a positive whole number. Decimal quantities are not allowed."
-  );
-  return;
-}
+        setError(
+          "Every item quantity must be a positive whole number. Decimal quantities are not allowed."
+        );
+        return;
+      }
     }
 
     setSaving(true);
@@ -1470,1479 +1483,1527 @@ setQuickError("");
       `}</style>
 
       {/* PAGE HEADER */}
-      <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
-        <div>
-          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-blue-700 dark:border-blue-900/70 dark:bg-blue-950/60 dark:text-blue-300">
-            <span className="h-2 w-2 rounded-full bg-blue-600 dark:bg-blue-400" />
-            Sales Management
-          </div>
-
-          <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white sm:text-4xl">
-            Sales Invoices
-          </h1>
-
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 sm:text-base">
-            {showInvoiceForm
-              ? "Create, update, and manage customer invoices."
-              : "Manage invoices, monitor payments, and review accounting entries."}
-          </p>
-        </div>
-
-        {!showInvoiceForm && permissions.can_create && (
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={startInvoiceFromDeliveryChallan}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-bold text-indigo-700 shadow-sm transition hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900/60"
-            >
-              <span className="text-lg leading-none">↗</span>
-              Create from Delivery Challan
-            </button>
-
-            <button
-              type="button"
-              onClick={startManualInvoice}
-              className={primaryButton}
-            >
-              <span className="text-xl leading-none">+</span>
-              Add Manual Invoice
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* FEEDBACK */}
-      {successMessage && (
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
-          <span>✓ {successMessage}</span>
-          <button
-            type="button"
-            onClick={() => setSuccessMessage("")}
-            className="text-lg"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {error && (
-        <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-red-100 font-bold dark:bg-red-900/70">
-            !
-          </span>
-          <div className="flex-1 pt-1">{error}</div>
-          <button
-            type="button"
-            onClick={() => setError("")}
-            className="text-lg"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {/* SUMMARY CARDS */}
-      {!showInvoiceForm && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
-                Total Invoices
-              </p>
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-xl text-blue-600 dark:bg-blue-950/60 dark:text-blue-300">
-                #
-              </span>
-            </div>
-            <p className="mt-4 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
-              {invoices.length}
-            </p>
-            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-              Recorded sales invoices
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
-                Total Invoiced
-              </p>
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-xl text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-300">
-                ↗
-              </span>
-            </div>
-            <p className="mt-4 break-words text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-              {formatMoney(totalInvoiced)}
-            </p>
-            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-              Invoice value
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
-                Total Received
-              </p>
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-xl text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-300">
-                ✓
-              </span>
-            </div>
-            <p className="mt-4 break-words text-2xl font-black tracking-tight text-emerald-700 dark:text-emerald-300">
-              {formatMoney(totalPaid)}
-            </p>
-            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-              Payments recorded
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-amber-900/70 dark:from-amber-950/50 dark:to-slate-900">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
-                Outstanding
-              </p>
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-xl text-amber-700 dark:bg-amber-900/60 dark:text-amber-300">
-                !
-              </span>
-            </div>
-            <p className="mt-4 break-words text-2xl font-black tracking-tight text-amber-800 dark:text-amber-300">
-              {formatMoney(totalOutstanding)}
-            </p>
-            <p className="mt-1 text-xs text-amber-700/70 dark:text-amber-400">
-              Remaining balance
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* CREATE / EDIT FORM */}
-      {showInvoiceForm && (
-        <form
-          onSubmit={saveInvoice}
-          className="space-y-7 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-7"
-        >
-          <div className="flex flex-col justify-between gap-4 border-b border-slate-100 pb-5 dark:border-slate-800 sm:flex-row sm:items-center">
-            <div className="flex items-start gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-2xl text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
-                {editingInvoiceId ? "✎" : "+"}
-              </div>
-              <div>
-                <h2 className="text-xl font-extrabold text-slate-900 dark:text-white">
-                  {editingInvoiceId
-                    ? "Edit Sales Invoice"
-                    : "Create Sales Invoice"}
-                </h2>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  Enter the invoice details and add your products.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              {editingInvoiceId && (
-                <span className="rounded-full bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:ring-amber-800">
-                  Editing invoice
-                </span>
-              )}
-
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => {
-                  resetForm();
-                  setError("");
-                }}
-                className={secondaryButton}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-
-          {/* 01 INVOICE INFORMATION */}
-          <section>
-            <div className="mb-4 flex items-center gap-3">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-sm font-extrabold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
-                01
-              </span>
-              <div>
-                <h3 className="font-bold text-slate-900 dark:text-white">
-                  Invoice Information
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Invoice number, customer, warehouse, and date.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <div>
-                <label className={labelClass}>Invoice Number</label>
-                <input
-                  value={invoiceNumber}
-                  onChange={(event) => setInvoiceNumber(event.target.value)}
-                  placeholder="INV-001"
-                  className={inputClass}
-                />
+      {/* PAGE HEADER */}
+        {!showInvoiceForm && (
+          <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
+            <div>
+              <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-blue-700 dark:border-blue-900/70 dark:bg-blue-950/60 dark:text-blue-300">
+                <span className="h-2 w-2 rounded-full bg-blue-600 dark:bg-blue-400" />
+                Sales Management
               </div>
 
-              <div>
-                <label className={labelClass}>Customer *</label>
-                <select
-                  value={customerId}
-                  onChange={(event) => setCustomerId(event.target.value)}
-                  className={inputClass}
-                  required
+              <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white sm:text-4xl">
+                Sales Invoices
+              </h1>
+
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 sm:text-base">
+                {showInvoiceForm
+                  ? "Create, update, and manage customer invoices."
+                  : "Manage invoices, monitor payments, and review accounting entries."}
+              </p>
+            </div>
+
+            {!showInvoiceForm && permissions.can_create && (
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={startInvoiceFromDeliveryChallan}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-bold text-indigo-700 shadow-sm transition hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900/60"
                 >
-                  <option value="">Select Customer</option>
-                  {customers.map((customer) => (
-                    <option
-                      key={customer.customer_id}
-                      value={customer.customer_id}
-                    >
-                      {customer.customer_code} - {customer.customer_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className={labelClass}>Warehouse *</label>
-                <select
-                  value={warehouseId}
-                  onChange={(event) => setWarehouseId(event.target.value)}
-                  className={inputClass}
-                  required
-                >
-                  <option value="">Select Warehouse</option>
-                  {warehouses.map((warehouse) => (
-                    <option
-                      key={warehouse.warehouse_id}
-                      value={warehouse.warehouse_id}
-                    >
-                      {warehouse.warehouse_code} - {warehouse.warehouse_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className={labelClass}>Invoice Date *</label>
-                <input
-                  type="date"
-                  value={invoiceDate}
-                  onChange={(event) => setInvoiceDate(event.target.value)}
-                  className={inputClass}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className={labelClass}>Invoice Discount</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={discount}
-                  onChange={(event) => setDiscount(event.target.value)}
-                  className={inputClass}
-                />
-              </div>
-
-              <div>
-                <label className={labelClass}>Invoice Tax</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={tax}
-                  onChange={(event) => setTax(event.target.value)}
-                  className={inputClass}
-                />
-              </div>
-            </div>
-          </section>
-
-          {/* 02 INVOICE ITEMS */}
-          <section className="border-t border-slate-100 pt-6 dark:border-slate-800">
-            <div className="mb-4 flex items-center gap-3">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-sm font-extrabold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
-                02
-              </span>
-              <div>
-                <h3 className="font-bold text-slate-900 dark:text-white">
-                  Invoice Items
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Type or scan a product, then press Enter or click Add.
-                </p>
-              </div>
-            </div>
-
-            {/* QUICK ADD BAR */}
-            {/* QUICK ADD BAR */}
-            <div className="mb-4 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 dark:border-indigo-900/60 dark:bg-indigo-950/20">
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-[minmax(220px,2.2fr)_repeat(4,minmax(90px,1fr))_minmax(110px,1fr)_auto] lg:items-end">
-                <div className="col-span-2 lg:col-span-1">
-                  <label className={labelClass}>Product</label>
-                  <input
-                    ref={quickInputRef}
-                    list="quick-product-list"
-                    value={quick.search}
-                    onChange={(event) => handleQuickProductChange(event.target.value)}
-                    onKeyDown={handleQuickKeyDown}
-                    placeholder="Search or scan SKU, barcode or name..."
-                    autoComplete="off"
-                    className={inputClass}
-                  />
-
-                  <datalist id="quick-product-list">
-                    {products
-                      .filter((product) => product.is_active)
-                      .map((product) => (
-                        <option
-                          key={product.product_id}
-                          value={`${product.sku} - ${product.product_name}`}
-                        />
-                      ))}
-                  </datalist>
-                </div>
-
-                <div>
-                  <label className={labelClass}>Quantity</label>
-                  <input
-  type="number"
-  min="1"
-  step="1"
-  value={quick.quantity}
-  onChange={(event) => setQuickField("quantity", event.target.value)}
-  onKeyDown={handleQuickKeyDown}
-  className={`${inputClass} min-w-[100px]`}
-  required
-/>
-                </div>
-
-                <div>
-                  <label className={labelClass}>Unit Price</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={quick.unitPrice}
-                    onChange={(event) => setQuickField("unitPrice", event.target.value)}
-                    onKeyDown={handleQuickKeyDown}
-                    className={inputClass}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelClass}>Discount</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={quick.discount}
-                    onChange={(event) => setQuickField("discount", event.target.value)}
-                    onKeyDown={handleQuickKeyDown}
-                    className={inputClass}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelClass}>Tax</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={quick.tax}
-                    onChange={(event) => setQuickField("tax", event.target.value)}
-                    onKeyDown={handleQuickKeyDown}
-                    className={inputClass}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelClass}>Line Total</label>
-                  <div className="flex h-[42px] items-center justify-end rounded-xl border border-slate-200 bg-slate-100 px-3 text-sm font-bold tabular-nums text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
-                    {formatMoney(
-                      calculateLineTotal({
-                        quantity: quick.quantity,
-                        unitPrice: quick.unitPrice,
-                        discount: quick.discount,
-                        tax: quick.tax,
-                      })
-                    )}
-                  </div>
-                </div>
+                  <span className="text-lg leading-none">↗</span>
+                  Create from Delivery Challan
+                </button>
 
                 <button
                   type="button"
-                  onClick={addQuickItem}
-                  className={`${primaryButton} col-span-2 h-[42px] lg:col-span-1`}
+                  onClick={startManualInvoice}
+                  className={primaryButton}
                 >
-                  <span className="text-lg leading-none">+</span>
-                  Add
+                  <span className="text-xl leading-none">+</span>
+                  Add Manual Invoice
                 </button>
               </div>
+            )}
+          </div>
+        )}
 
-              {quickError && (
-                <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">
-                  {quickError}
+        {/* FEEDBACK */}
+        {successMessage && (
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+            <span>✓ {successMessage}</span>
+            <button
+              type="button"
+              onClick={() => setSuccessMessage("")}
+              className="text-lg"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
+        {error && (
+          <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-red-100 font-bold dark:bg-red-900/70">
+              !
+            </span>
+            <div className="flex-1 pt-1">{error}</div>
+            <button
+              type="button"
+              onClick={() => setError("")}
+              className="text-lg"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
+        {/* SUMMARY CARDS */}
+        {!showInvoiceForm && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                  Total Invoices
                 </p>
-              )}
-            </div>
-
-            {/* ITEMS TOOLBAR */}
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                {items.length} item{items.length === 1 ? "" : "s"} added
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-xl text-blue-600 dark:bg-blue-950/60 dark:text-blue-300">
+                  #
+                </span>
+              </div>
+              <p className="mt-4 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                {invoices.length}
               </p>
-
-              <ColumnToggle columns={ITEM_COLUMNS} state={itemCols} />
+              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                Recorded sales invoices
+              </p>
             </div>
 
-            {/* The scrollbar appears only when the visible columns are wider
-                than the container. */}
-            <div className="w-full overflow-x-auto rounded-2xl border border-slate-200 [scrollbar-width:thin] dark:border-slate-700">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 dark:bg-slate-800">
-                  <tr>
-                    {itemCols.visible.product && (
-                      <th className="px-4 py-3 text-left font-bold text-slate-500 dark:text-slate-300">
-                        Product
-                      </th>
-                    )}
-                    {itemCols.visible.quantity && (
-                      <th className="px-4 py-3 text-left font-bold text-slate-500 dark:text-slate-300">
-                        Quantity
-                      </th>
-                    )}
-                    {itemCols.visible.unitPrice && (
-                      <th className="px-4 py-3 text-left font-bold text-slate-500 dark:text-slate-300">
-                        Unit Price
-                      </th>
-                    )}
-                    {itemCols.visible.discount && (
-                      <th className="px-4 py-3 text-left font-bold text-slate-500 dark:text-slate-300">
-                        Discount
-                      </th>
-                    )}
-                    {itemCols.visible.tax && (
-                      <th className="px-4 py-3 text-left font-bold text-slate-500 dark:text-slate-300">
-                        Tax
-                      </th>
-                    )}
-                    {itemCols.visible.lineTotal && (
-                      <th className="px-4 py-3 text-right font-bold text-slate-500 dark:text-slate-300">
-                        Line Total
-                      </th>
-                    )}
-                    {itemCols.visible.action && (
-                      <th className="px-4 py-3 text-center font-bold text-slate-500 dark:text-slate-300">
-                        Action
-                      </th>
-                    )}
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {items.map((item, index) => (
-                    <tr
-                      key={index}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-800/60"
-                    >
-                      {itemCols.visible.product && (
-                        <td className="min-w-[230px] px-3 py-3">
-                          <select
-                            value={item.productId}
-                            onChange={(event) =>
-                              updateItem(index, "productId", event.target.value)
-                            }
-                            className={inputClass}
-                            required
-                          >
-                            <option value="">Select Product</option>
-                            {products
-                              .filter((product) => product.is_active)
-                              .map((product) => (
-                                <option
-                                  key={product.product_id}
-                                  value={product.product_id}
-                                >
-                                  {product.sku} - {product.product_name}
-                                </option>
-                              ))}
-                          </select>
-                        </td>
-                      )}
-
-                      {itemCols.visible.quantity && (
-                        <td className="px-3 py-3">
-                          <input
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={item.quantity}
-                            onChange={(event) =>
-                              updateItem(index, "quantity", event.target.value)
-                            }
-                            className={`${inputClass} min-w-[100px]`}
-                            required
-                          />
-                        </td>
-                      )}
-
-                      {itemCols.visible.unitPrice && (
-                        <td className="px-3 py-3">
-                          <input
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={item.unitPrice}
-                            onChange={(event) =>
-                              updateItem(index, "unitPrice", event.target.value)
-                            }
-                            className={`${inputClass} min-w-[115px]`}
-                          />
-                        </td>
-                      )}
-
-                      {itemCols.visible.discount && (
-                        <td className="px-3 py-3">
-                          <input
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={item.discount}
-                            onChange={(event) =>
-                              updateItem(index, "discount", event.target.value)
-                            }
-                            className={`${inputClass} min-w-[100px]`}
-                          />
-                        </td>
-                      )}
-
-                      {itemCols.visible.tax && (
-                        <td className="px-3 py-3">
-                          <input
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={item.tax}
-                            onChange={(event) =>
-                              updateItem(index, "tax", event.target.value)
-                            }
-                            className={`${inputClass} min-w-[100px]`}
-                          />
-                        </td>
-                      )}
-
-                      {itemCols.visible.lineTotal && (
-                        <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-slate-800 dark:text-slate-100">
-                          {formatMoney(calculateLineTotal(item))}
-                        </td>
-                      )}
-
-                      {itemCols.visible.action && (
-                        <td className="px-3 py-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => removeItem(index)}
-                            className="rounded-lg px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/50"
-                          >
-                            Remove
-                          </button>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-
-                  {!items.length && (
-                    <tr>
-                      <td
-                        colSpan={itemCols.count}
-                        className="px-4 py-12 text-center"
-                      >
-                        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl text-slate-400 dark:bg-slate-800 dark:text-slate-500">
-                          +
-                        </div>
-                        <p className="mt-3 font-semibold text-slate-700 dark:text-slate-200">
-                          No products added
-                        </p>
-                        <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">
-                          Use the Item field above to add your first product.
-                        </p>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          {/* 03 NOTES AND SUMMARY */}
-          <section className="border-t border-slate-100 pt-6 dark:border-slate-800">
-            <div className="mb-4 flex items-center gap-3">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-sm font-extrabold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
-                03
-              </span>
-              <div>
-                <h3 className="font-bold text-slate-900 dark:text-white">
-                  Notes and Summary
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Add optional notes and review the invoice totals.
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                  Total Invoiced
                 </p>
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-xl text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-300">
+                  ↗
+                </span>
+              </div>
+              <p className="mt-4 break-words text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+                {formatMoney(totalInvoiced)}
+              </p>
+              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                Invoice value
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                  Total Received
+                </p>
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-xl text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-300">
+                  ✓
+                </span>
+              </div>
+              <p className="mt-4 break-words text-2xl font-black tracking-tight text-emerald-700 dark:text-emerald-300">
+                {formatMoney(totalPaid)}
+              </p>
+              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                Payments recorded
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-amber-900/70 dark:from-amber-950/50 dark:to-slate-900">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                  Outstanding
+                </p>
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-xl text-amber-700 dark:bg-amber-900/60 dark:text-amber-300">
+                  !
+                </span>
+              </div>
+              <p className="mt-4 break-words text-2xl font-black tracking-tight text-amber-800 dark:text-amber-300">
+                {formatMoney(totalOutstanding)}
+              </p>
+              <p className="mt-1 text-xs text-amber-700/70 dark:text-amber-400">
+                Remaining balance
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* CREATE / EDIT FORM */}
+        {showInvoiceForm && (
+          <form
+            onSubmit={saveInvoice}
+            className="space-y-7 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-7"
+          >
+            <div className="flex flex-col justify-between gap-4 border-b border-slate-100 pb-5 dark:border-slate-800 sm:flex-row sm:items-center">
+              <div className="flex items-start gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-2xl text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+                  {editingInvoiceId ? "✎" : "+"}
+                </div>
+                <div>
+                  <h2 className="text-xl font-extrabold text-slate-900 dark:text-white">
+                    {editingInvoiceId
+                      ? "Edit Sales Invoice"
+                      : invoiceCreationMode === "delivery_challan"
+                        ? "Create Invoice from Delivery Challan"
+                        : "Create Manual Sales Invoice"}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                    Enter the invoice details and add your products.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {editingInvoiceId && (
+                  <span className="rounded-full bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:ring-amber-800">
+                    Editing invoice
+                  </span>
+                )}
+
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => {
+                    resetForm();
+                    setError("");
+                  }}
+                  className={secondaryButton}
+                >
+                  Cancel
+                </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
-              <div>
-                <label className={labelClass}>Notes</label>
-                <textarea
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                  rows={5}
-                  placeholder="Enter any additional invoice notes..."
-                  className={inputClass}
-                />
+            {/* 01 INVOICE INFORMATION */}
+            <section>
+              <div className="mb-4 flex items-center gap-3">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-sm font-extrabold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+                  01
+                </span>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white">
+                    Invoice Information
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Invoice number, customer, warehouse, and date.
+                  </p>
+                </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800/70">
-                <div className="mb-4 flex items-center justify-between">
-                  <h4 className="font-bold text-slate-900 dark:text-white">
-                    Invoice Summary
-                  </h4>
-                  <span className="rounded-lg bg-white px-2 py-1 text-xs font-semibold text-slate-500 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700">
-                    PKR
-                  </span>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+
+                {!editingInvoiceId && invoiceCreationMode === "delivery_challan" && (
+                  <div className="md:col-span-2 xl:col-span-3">
+                    <label className={labelClass}>Approved Delivery Challan *</label>
+
+                    <select
+                      value={deliveryChallanId}
+                      onChange={(event) => loadDeliveryChallan(event.target.value)}
+                      className={inputClass}
+                      required
+                      disabled={loadingChallan}
+                    >
+                      <option value="">Select Delivery Challan</option>
+
+                      {availableDeliveryChallans.map((challan) => (
+                        <option
+                          key={challan.delivery_challan_id}
+                          value={challan.delivery_challan_id}
+                        >
+                          {challan.transaction_number || `DC-${challan.delivery_challan_id}`}
+                        </option>
+                      ))}
+                    </select>
+
+                    {loadingChallan && (
+                      <p className="mt-2 text-sm text-indigo-600">
+                        Loading Delivery Challan items...
+                      </p>
+                    )}
+
+                    {!loadingChallan && availableDeliveryChallans.length === 0 && (
+                      <p className="mt-2 text-sm text-amber-600">
+                        No approved, uninvoiced Delivery Challans are available.
+                      </p>
+                    )}
+
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                      Selecting a Delivery Challan automatically loads its customer,
+                      warehouse, date, and products.
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <label className={labelClass}>Invoice Number</label>
+                  <input
+                    value={invoiceNumber}
+                    onChange={(event) => setInvoiceNumber(event.target.value)}
+                    placeholder="INV-001"
+                    className={inputClass}
+                  />
                 </div>
 
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between gap-3 text-slate-600 dark:text-slate-300">
-                    <span>Subtotal</span>
-                    <span className="font-semibold text-slate-900 dark:text-white">
-                      {formatMoney(subtotal)}
+                <div>
+                  <label className={labelClass}>Customer *</label>
+                  <select
+                    value={customerId}
+                    onChange={(event) => setCustomerId(event.target.value)}
+                    className={inputClass}
+                    required
+                  >
+                    <option value="">Select Customer</option>
+                    {customers.map((customer) => (
+                      <option
+                        key={customer.customer_id}
+                        value={customer.customer_id}
+                      >
+                        {customer.customer_code} - {customer.customer_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className={labelClass}>Warehouse *</label>
+                  <select
+                    value={warehouseId}
+                    onChange={(event) => setWarehouseId(event.target.value)}
+                    className={inputClass}
+                    required
+                  >
+                    <option value="">Select Warehouse</option>
+                    {warehouses.map((warehouse) => (
+                      <option
+                        key={warehouse.warehouse_id}
+                        value={warehouse.warehouse_id}
+                      >
+                        {warehouse.warehouse_code} - {warehouse.warehouse_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className={labelClass}>Invoice Date *</label>
+                  <input
+                    type="date"
+                    value={invoiceDate}
+                    onChange={(event) => setInvoiceDate(event.target.value)}
+                    className={inputClass}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClass}>Invoice Discount</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={discount}
+                    onChange={(event) => setDiscount(event.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClass}>Invoice Tax</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={tax}
+                    onChange={(event) => setTax(event.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* 02 INVOICE ITEMS */}
+            <section className="border-t border-slate-100 pt-6 dark:border-slate-800">
+              <div className="mb-4 flex items-center gap-3">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-sm font-extrabold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
+                  02
+                </span>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white">
+                    Invoice Items
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Type or scan a product, then press Enter or click Add.
+                  </p>
+                </div>
+              </div>
+
+              {/* QUICK ADD BAR */}
+              {/* QUICK ADD BAR */}
+              <div className="mb-4 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 dark:border-indigo-900/60 dark:bg-indigo-950/20">
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-[minmax(220px,2.2fr)_repeat(4,minmax(90px,1fr))_minmax(110px,1fr)_auto] lg:items-end">
+                  <div className="col-span-2 lg:col-span-1">
+                    <label className={labelClass}>Product</label>
+                    <input
+                      ref={quickInputRef}
+                      list="quick-product-list"
+                      value={quick.search}
+                      onChange={(event) => handleQuickProductChange(event.target.value)}
+                      onKeyDown={handleQuickKeyDown}
+                      placeholder="Search or scan SKU, barcode or name..."
+                      autoComplete="off"
+                      className={inputClass}
+                    />
+
+                    <datalist id="quick-product-list">
+                      {products
+                        .filter((product) => product.is_active)
+                        .map((product) => (
+                          <option
+                            key={product.product_id}
+                            value={`${product.sku} - ${product.product_name}`}
+                          />
+                        ))}
+                    </datalist>
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Quantity</label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={quick.quantity}
+                      onChange={(event) => setQuickField("quantity", event.target.value)}
+                      onKeyDown={handleQuickKeyDown}
+                      className={`${inputClass} min-w-[100px]`}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Unit Price</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={quick.unitPrice}
+                      onChange={(event) => setQuickField("unitPrice", event.target.value)}
+                      onKeyDown={handleQuickKeyDown}
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Discount</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={quick.discount}
+                      onChange={(event) => setQuickField("discount", event.target.value)}
+                      onKeyDown={handleQuickKeyDown}
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Tax</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={quick.tax}
+                      onChange={(event) => setQuickField("tax", event.target.value)}
+                      onKeyDown={handleQuickKeyDown}
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Line Total</label>
+                    <div className="flex h-[42px] items-center justify-end rounded-xl border border-slate-200 bg-slate-100 px-3 text-sm font-bold tabular-nums text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                      {formatMoney(
+                        calculateLineTotal({
+                          quantity: quick.quantity,
+                          unitPrice: quick.unitPrice,
+                          discount: quick.discount,
+                          tax: quick.tax,
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={addQuickItem}
+                    className={`${primaryButton} col-span-2 h-[42px] lg:col-span-1`}
+                  >
+                    <span className="text-lg leading-none">+</span>
+                    Add
+                  </button>
+                </div>
+
+                {quickError && (
+                  <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">
+                    {quickError}
+                  </p>
+                )}
+              </div>
+
+              {/* ITEMS TOOLBAR */}
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  {items.length} item{items.length === 1 ? "" : "s"} added
+                </p>
+
+                <ColumnToggle columns={ITEM_COLUMNS} state={itemCols} />
+              </div>
+
+              {/* The scrollbar appears only when the visible columns are wider
+                than the container. */}
+              <div className="w-full overflow-x-auto rounded-2xl border border-slate-200 [scrollbar-width:thin] dark:border-slate-700">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 dark:bg-slate-800">
+                    <tr>
+                      {itemCols.visible.product && (
+                        <th className="px-4 py-3 text-left font-bold text-slate-500 dark:text-slate-300">
+                          Product
+                        </th>
+                      )}
+                      {itemCols.visible.quantity && (
+                        <th className="px-4 py-3 text-left font-bold text-slate-500 dark:text-slate-300">
+                          Quantity
+                        </th>
+                      )}
+                      {itemCols.visible.unitPrice && (
+                        <th className="px-4 py-3 text-left font-bold text-slate-500 dark:text-slate-300">
+                          Unit Price
+                        </th>
+                      )}
+                      {itemCols.visible.discount && (
+                        <th className="px-4 py-3 text-left font-bold text-slate-500 dark:text-slate-300">
+                          Discount
+                        </th>
+                      )}
+                      {itemCols.visible.tax && (
+                        <th className="px-4 py-3 text-left font-bold text-slate-500 dark:text-slate-300">
+                          Tax
+                        </th>
+                      )}
+                      {itemCols.visible.lineTotal && (
+                        <th className="px-4 py-3 text-right font-bold text-slate-500 dark:text-slate-300">
+                          Line Total
+                        </th>
+                      )}
+                      {itemCols.visible.action && (
+                        <th className="px-4 py-3 text-center font-bold text-slate-500 dark:text-slate-300">
+                          Action
+                        </th>
+                      )}
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {items.map((item, index) => (
+                      <tr
+                        key={index}
+                        className="hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                      >
+                        {itemCols.visible.product && (
+                          <td className="min-w-[230px] px-3 py-3">
+                            <select
+                              value={item.productId}
+                              onChange={(event) =>
+                                updateItem(index, "productId", event.target.value)
+                              }
+                              className={inputClass}
+                              required
+                            >
+                              <option value="">Select Product</option>
+                              {products
+                                .filter((product) => product.is_active)
+                                .map((product) => (
+                                  <option
+                                    key={product.product_id}
+                                    value={product.product_id}
+                                  >
+                                    {product.sku} - {product.product_name}
+                                  </option>
+                                ))}
+                            </select>
+                          </td>
+                        )}
+
+                        {itemCols.visible.quantity && (
+                          <td className="px-3 py-3">
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={item.quantity}
+                              onChange={(event) =>
+                                updateItem(index, "quantity", event.target.value)
+                              }
+                              className={`${inputClass} min-w-[100px]`}
+                              required
+                            />
+                          </td>
+                        )}
+
+                        {itemCols.visible.unitPrice && (
+                          <td className="px-3 py-3">
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={item.unitPrice}
+                              onChange={(event) =>
+                                updateItem(index, "unitPrice", event.target.value)
+                              }
+                              className={`${inputClass} min-w-[115px]`}
+                            />
+                          </td>
+                        )}
+
+                        {itemCols.visible.discount && (
+                          <td className="px-3 py-3">
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={item.discount}
+                              onChange={(event) =>
+                                updateItem(index, "discount", event.target.value)
+                              }
+                              className={`${inputClass} min-w-[100px]`}
+                            />
+                          </td>
+                        )}
+
+                        {itemCols.visible.tax && (
+                          <td className="px-3 py-3">
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={item.tax}
+                              onChange={(event) =>
+                                updateItem(index, "tax", event.target.value)
+                              }
+                              className={`${inputClass} min-w-[100px]`}
+                            />
+                          </td>
+                        )}
+
+                        {itemCols.visible.lineTotal && (
+                          <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-slate-800 dark:text-slate-100">
+                            {formatMoney(calculateLineTotal(item))}
+                          </td>
+                        )}
+
+                        {itemCols.visible.action && (
+                          <td className="px-3 py-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => removeItem(index)}
+                              className="rounded-lg px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/50"
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+
+                    {!items.length && (
+                      <tr>
+                        <td
+                          colSpan={itemCols.count}
+                          className="px-4 py-12 text-center"
+                        >
+                          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl text-slate-400 dark:bg-slate-800 dark:text-slate-500">
+                            +
+                          </div>
+                          <p className="mt-3 font-semibold text-slate-700 dark:text-slate-200">
+                            No products added
+                          </p>
+                          <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">
+                            Use the Item field above to add your first product.
+                          </p>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            {/* 03 NOTES AND SUMMARY */}
+            <section className="border-t border-slate-100 pt-6 dark:border-slate-800">
+              <div className="mb-4 flex items-center gap-3">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-sm font-extrabold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                  03
+                </span>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white">
+                    Notes and Summary
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Add optional notes and review the invoice totals.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
+                <div>
+                  <label className={labelClass}>Notes</label>
+                  <textarea
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value)}
+                    rows={5}
+                    placeholder="Enter any additional invoice notes..."
+                    className={inputClass}
+                  />
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800/70">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h4 className="font-bold text-slate-900 dark:text-white">
+                      Invoice Summary
+                    </h4>
+                    <span className="rounded-lg bg-white px-2 py-1 text-xs font-semibold text-slate-500 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700">
+                      PKR
                     </span>
                   </div>
 
-                  <div className="flex justify-between gap-3 text-slate-600 dark:text-slate-300">
-                    <span>Invoice Discount</span>
-                    <span className="font-semibold text-slate-900 dark:text-white">
-                      -{formatMoney(discount)}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between gap-3 text-slate-600 dark:text-slate-300">
-                    <span>Invoice Tax</span>
-                    <span className="font-semibold text-slate-900 dark:text-white">
-                      +{formatMoney(tax)}
-                    </span>
-                  </div>
-
-                  <div className="border-t border-dashed border-slate-300 pt-4 dark:border-slate-600">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-bold text-slate-900 dark:text-white">
-                        Total Amount
+                  <div className="space-y-3 text-sm">
+                    <div className="flex justify-between gap-3 text-slate-600 dark:text-slate-300">
+                      <span>Subtotal</span>
+                      <span className="font-semibold text-slate-900 dark:text-white">
+                        {formatMoney(subtotal)}
                       </span>
-                      <span className="text-xl font-black tracking-tight text-blue-700 dark:text-blue-300">
-                        {formatMoney(total)}
+                    </div>
+
+                    <div className="flex justify-between gap-3 text-slate-600 dark:text-slate-300">
+                      <span>Invoice Discount</span>
+                      <span className="font-semibold text-slate-900 dark:text-white">
+                        -{formatMoney(discount)}
                       </span>
+                    </div>
+
+                    <div className="flex justify-between gap-3 text-slate-600 dark:text-slate-300">
+                      <span>Invoice Tax</span>
+                      <span className="font-semibold text-slate-900 dark:text-white">
+                        +{formatMoney(tax)}
+                      </span>
+                    </div>
+
+                    <div className="border-t border-dashed border-slate-300 pt-4 dark:border-slate-600">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-bold text-slate-900 dark:text-white">
+                          Total Amount
+                        </span>
+                        <span className="text-xl font-black tracking-tight text-blue-700 dark:text-blue-300">
+                          {formatMoney(total)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </section>
+            </section>
 
-          <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-slate-400 dark:text-slate-500">
-              Fields marked with * are required.
-            </p>
-
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => {
-                  resetForm();
-                  setError("");
-                }}
-                className={secondaryButton}
-              >
-                Cancel
-              </button>
-
-              <button
-                type="submit"
-                disabled={saving}
-                className={`${primaryButton} min-w-[190px]`}
-              >
-                {saving ? (
-                  <>
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                    {editingInvoiceId ? "Updating..." : "Saving..."}
-                  </>
-                ) : (
-                  <>
-                    <span>✓</span>
-                    {editingInvoiceId ? "Update Invoice" : "Save Sales Invoice"}
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </form>
-      )}
-
-      {/* INVOICE LIST (no overflow-hidden, so the Columns dropdown is never clipped) */}
-      {!showInvoiceForm && (
-        <section className="rounded-3xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex flex-col justify-between gap-3 rounded-t-3xl border-b border-slate-100 p-5 dark:border-slate-800 sm:flex-row sm:items-center sm:px-6">
-            <div>
-              <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
-                Sales Invoice Register
-              </h2>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Browse invoices, review balances, and open accounting entries.
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                Fields marked with * are required.
               </p>
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => {
+                    resetForm();
+                    setError("");
+                  }}
+                  className={secondaryButton}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className={`${primaryButton} min-w-[190px]`}
+                >
+                  {saving ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                      {editingInvoiceId ? "Updating..." : "Saving..."}
+                    </>
+                  ) : (
+                    <>
+                      <span>✓</span>
+                      {editingInvoiceId ? "Update Invoice" : "Save Sales Invoice"}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
+
+        {/* INVOICE LIST (no overflow-hidden, so the Columns dropdown is never clipped) */}
+        {!showInvoiceForm && (
+          <section className="rounded-3xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex flex-col justify-between gap-3 rounded-t-3xl border-b border-slate-100 p-5 dark:border-slate-800 sm:flex-row sm:items-center sm:px-6">
+              <div>
+                <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
+                  Sales Invoice Register
+                </h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  Browse invoices, review balances, and open accounting entries.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex w-fit items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-sm font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                  <span className="h-2 w-2 rounded-full bg-blue-500" />
+                  {invoices.length} records
+                </span>
+
+                {/* COLUMN PICKER */}
+                <ColumnToggle columns={INVOICE_COLUMNS} state={invoiceCols} />
+              </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex w-fit items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-sm font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                <span className="h-2 w-2 rounded-full bg-blue-500" />
-                {invoices.length} records
-              </span>
-
-              {/* COLUMN PICKER */}
-              <ColumnToggle columns={INVOICE_COLUMNS} state={invoiceCols} />
-            </div>
-          </div>
-
-          {loading ? (
-            <div className="flex flex-col items-center justify-center gap-3 p-16">
-              <div className="h-9 w-9 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600 dark:border-slate-700 dark:border-t-blue-400" />
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                Loading sales invoices...
-              </p>
-            </div>
-          ) : (
-            /* The scrollbar appears only when the visible columns are wider
-               than the container. */
-            <div className="w-full overflow-x-auto [scrollbar-width:thin]">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 dark:bg-slate-800">
-                  <tr>
-                    {invoiceCols.visible.invoice && (
-                      <th className="px-5 py-4 text-left font-bold text-slate-500 dark:text-slate-300">
-                        Invoice
-                      </th>
-                    )}
-                    {invoiceCols.visible.challan && (
-                      <th className="px-5 py-4 text-left font-bold text-slate-500 dark:text-slate-300">
-                        Delivery Challan
-                      </th>
-                    )}
-                    {invoiceCols.visible.customer && (
-                      <th className="px-5 py-4 text-left font-bold text-slate-500 dark:text-slate-300">
-                        Customer
-                      </th>
-                    )}
-                    {invoiceCols.visible.warehouse && (
-                      <th className="px-5 py-4 text-left font-bold text-slate-500 dark:text-slate-300">
-                        Warehouse
-                      </th>
-                    )}
-                    {invoiceCols.visible.date && (
-                      <th className="px-5 py-4 text-left font-bold text-slate-500 dark:text-slate-300">
-                        Date
-                      </th>
-                    )}
-                    {invoiceCols.visible.total && (
-                      <th className="px-5 py-4 text-right font-bold text-slate-500 dark:text-slate-300">
-                        Total
-                      </th>
-                    )}
-                    {invoiceCols.visible.paid && (
-                      <th className="px-5 py-4 text-right font-bold text-slate-500 dark:text-slate-300">
-                        Paid
-                      </th>
-                    )}
-                    {invoiceCols.visible.balance && (
-                      <th className="px-5 py-4 text-right font-bold text-slate-500 dark:text-slate-300">
-                        Balance
-                      </th>
-                    )}
-                    {invoiceCols.visible.status && (
-                      <th className="px-5 py-4 text-left font-bold text-slate-500 dark:text-slate-300">
-                        Status
-                      </th>
-                    )}
-                    {invoiceCols.visible.accounting && (
-                      <th className="px-5 py-4 text-center font-bold text-slate-500 dark:text-slate-300">
-                        Accounting
-                      </th>
-                    )}
-                    {invoiceCols.visible.actions && (
-                      <th className="px-5 py-4 text-center font-bold text-slate-500 dark:text-slate-300">
-                        Actions
-                      </th>
-                    )}
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {invoices.map((invoice) => (
-                    <tr
-                      key={invoice.invoice_id}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-800/60"
-                    >
+            {loading ? (
+              <div className="flex flex-col items-center justify-center gap-3 p-16">
+                <div className="h-9 w-9 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600 dark:border-slate-700 dark:border-t-blue-400" />
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                  Loading sales invoices...
+                </p>
+              </div>
+            ) : (
+              /* The scrollbar appears only when the visible columns are wider
+                 than the container. */
+              <div className="w-full overflow-x-auto [scrollbar-width:thin]">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 dark:bg-slate-800">
+                    <tr>
                       {invoiceCols.visible.invoice && (
-                        <td className="whitespace-nowrap px-5 py-4">
-                          <button
-                            type="button"
-                            onClick={() => openInvoice(invoice.invoice_id)}
-                            className="font-extrabold text-blue-700 hover:text-blue-900 hover:underline dark:text-blue-300 dark:hover:text-blue-200"
-                          >
-                            {invoice.invoice_number}
-                          </button>
-                          <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-                            ID: {invoice.invoice_id}
-                          </p>
-                        </td>
+                        <th className="px-5 py-4 text-left font-bold text-slate-500 dark:text-slate-300">
+                          Invoice
+                        </th>
                       )}
-
                       {invoiceCols.visible.challan && (
-                        <td className="whitespace-nowrap px-5 py-4">
-                          {invoice.delivery_challan_number ? (
-                            <span className="inline-flex whitespace-nowrap rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
-                              {invoice.delivery_challan_number}
-                            </span>
-                          ) : (
-                            <span className="inline-flex rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                              Manual
-                            </span>
-                          )}
-                        </td>
+                        <th className="px-5 py-4 text-left font-bold text-slate-500 dark:text-slate-300">
+                          Delivery Challan
+                        </th>
                       )}
-
                       {invoiceCols.visible.customer && (
-                        <td className="whitespace-nowrap px-5 py-4">
-                          <p className="font-semibold text-slate-800 dark:text-slate-100">
-                            {invoice.customer_name || "-"}
-                          </p>
-                        </td>
+                        <th className="px-5 py-4 text-left font-bold text-slate-500 dark:text-slate-300">
+                          Customer
+                        </th>
                       )}
-
                       {invoiceCols.visible.warehouse && (
-                        <td className="whitespace-nowrap px-5 py-4 text-slate-600 dark:text-slate-300">
-                          {invoice.warehouse_name || "-"}
-                        </td>
+                        <th className="px-5 py-4 text-left font-bold text-slate-500 dark:text-slate-300">
+                          Warehouse
+                        </th>
                       )}
-
                       {invoiceCols.visible.date && (
-                        <td className="whitespace-nowrap px-5 py-4 text-slate-600 dark:text-slate-300">
-                          {formatDate(invoice.invoice_date)}
-                        </td>
+                        <th className="px-5 py-4 text-left font-bold text-slate-500 dark:text-slate-300">
+                          Date
+                        </th>
                       )}
-
                       {invoiceCols.visible.total && (
-                        <td className="whitespace-nowrap px-5 py-4 text-right font-bold text-slate-900 dark:text-white">
-                          {formatMoney(invoice.total_amount)}
-                        </td>
+                        <th className="px-5 py-4 text-right font-bold text-slate-500 dark:text-slate-300">
+                          Total
+                        </th>
                       )}
-
                       {invoiceCols.visible.paid && (
-                        <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-emerald-700 dark:text-emerald-300">
-                          {formatMoney(invoice.paid_amount)}
-                        </td>
+                        <th className="px-5 py-4 text-right font-bold text-slate-500 dark:text-slate-300">
+                          Paid
+                        </th>
                       )}
-
                       {invoiceCols.visible.balance && (
-                        <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-amber-700 dark:text-amber-300">
-                          {formatMoney(invoice.balance_amount)}
-                        </td>
+                        <th className="px-5 py-4 text-right font-bold text-slate-500 dark:text-slate-300">
+                          Balance
+                        </th>
                       )}
-
                       {invoiceCols.visible.status && (
-                        <td className="whitespace-nowrap px-5 py-4">
-                          <StatusBadge status={invoice.status} />
-                        </td>
+                        <th className="px-5 py-4 text-left font-bold text-slate-500 dark:text-slate-300">
+                          Status
+                        </th>
                       )}
-
                       {invoiceCols.visible.accounting && (
-                        <td className="whitespace-nowrap px-5 py-4 text-center">
-                          <button
-                            type="button"
-                            onClick={() => openAccountingLines(invoice)}
-                            className="whitespace-nowrap rounded-lg bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-950/60 dark:text-indigo-300 dark:hover:bg-indigo-900/60"
-                          >
-                            Debit / Credit
-                          </button>
-                        </td>
+                        <th className="px-5 py-4 text-center font-bold text-slate-500 dark:text-slate-300">
+                          Accounting
+                        </th>
                       )}
-
                       {invoiceCols.visible.actions && (
-                        <td className="whitespace-nowrap px-5 py-4">
-                          <div className="flex items-center justify-center gap-2">
+                        <th className="px-5 py-4 text-center font-bold text-slate-500 dark:text-slate-300">
+                          Actions
+                        </th>
+                      )}
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {invoices.map((invoice) => (
+                      <tr
+                        key={invoice.invoice_id}
+                        className="hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                      >
+                        {invoiceCols.visible.invoice && (
+                          <td className="whitespace-nowrap px-5 py-4">
                             <button
                               type="button"
                               onClick={() => openInvoice(invoice.invoice_id)}
-                              className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900/60"
+                              className="font-extrabold text-blue-700 hover:text-blue-900 hover:underline dark:text-blue-300 dark:hover:text-blue-200"
                             >
-                              View
+                              {invoice.invoice_number}
                             </button>
+                            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                              ID: {invoice.invoice_id}
+                            </p>
+                          </td>
+                        )}
 
-                            {permissions.can_update && (
+                        {invoiceCols.visible.challan && (
+                          <td className="whitespace-nowrap px-5 py-4">
+                            {invoice.delivery_challan_number ? (
+                              <span className="inline-flex whitespace-nowrap rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
+                                {invoice.delivery_challan_number}
+                              </span>
+                            ) : (
+                              <span className="inline-flex rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                                Manual
+                              </span>
+                            )}
+                          </td>
+                        )}
+
+                        {invoiceCols.visible.customer && (
+                          <td className="whitespace-nowrap px-5 py-4">
+                            <p className="font-semibold text-slate-800 dark:text-slate-100">
+                              {invoice.customer_name || "-"}
+                            </p>
+                          </td>
+                        )}
+
+                        {invoiceCols.visible.warehouse && (
+                          <td className="whitespace-nowrap px-5 py-4 text-slate-600 dark:text-slate-300">
+                            {invoice.warehouse_name || "-"}
+                          </td>
+                        )}
+
+                        {invoiceCols.visible.date && (
+                          <td className="whitespace-nowrap px-5 py-4 text-slate-600 dark:text-slate-300">
+                            {formatDate(invoice.invoice_date)}
+                          </td>
+                        )}
+
+                        {invoiceCols.visible.total && (
+                          <td className="whitespace-nowrap px-5 py-4 text-right font-bold text-slate-900 dark:text-white">
+                            {formatMoney(invoice.total_amount)}
+                          </td>
+                        )}
+
+                        {invoiceCols.visible.paid && (
+                          <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-emerald-700 dark:text-emerald-300">
+                            {formatMoney(invoice.paid_amount)}
+                          </td>
+                        )}
+
+                        {invoiceCols.visible.balance && (
+                          <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-amber-700 dark:text-amber-300">
+                            {formatMoney(invoice.balance_amount)}
+                          </td>
+                        )}
+
+                        {invoiceCols.visible.status && (
+                          <td className="whitespace-nowrap px-5 py-4">
+                            <StatusBadge status={invoice.status} />
+                          </td>
+                        )}
+
+                        {invoiceCols.visible.accounting && (
+                          <td className="whitespace-nowrap px-5 py-4 text-center">
+                            <button
+                              type="button"
+                              onClick={() => openAccountingLines(invoice)}
+                              className="whitespace-nowrap rounded-lg bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-950/60 dark:text-indigo-300 dark:hover:bg-indigo-900/60"
+                            >
+                              Debit / Credit
+                            </button>
+                          </td>
+                        )}
+
+                        {invoiceCols.visible.actions && (
+                          <td className="whitespace-nowrap px-5 py-4">
+                            <div className="flex items-center justify-center gap-2">
                               <button
                                 type="button"
-                                onClick={() => editInvoice(invoice.invoice_id)}
-                                className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700 hover:bg-amber-100 dark:bg-amber-950/60 dark:text-amber-300 dark:hover:bg-amber-900/60"
+                                onClick={() => openInvoice(invoice.invoice_id)}
+                                className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900/60"
                               >
-                                Edit
+                                View
                               </button>
-                            )}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
 
-                  {!invoices.length && (
-                    <tr>
-                      <td
-                        colSpan={invoiceCols.count}
-                        className="px-6 py-16 text-center"
-                      >
-                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl text-slate-400 dark:bg-slate-800 dark:text-slate-500">
-                          ▤
-                        </div>
-                        <p className="mt-4 font-bold text-slate-800 dark:text-slate-100">
-                          No sales invoices found
-                        </p>
-                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                          Create an invoice to see it listed here.
-                        </p>
-                        {permissions.can_create && (
-                          <button
-                            type="button"
-                            onClick={startManualInvoice}
-                            className={`${primaryButton} mt-4`}
-                          >
-                            + Add Manual Invoice
-                          </button>
+                              {permissions.can_update && (
+                                <button
+                                  type="button"
+                                  onClick={() => editInvoice(invoice.invoice_id)}
+                                  className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700 hover:bg-amber-100 dark:bg-amber-950/60 dark:text-amber-300 dark:hover:bg-amber-900/60"
+                                >
+                                  Edit
+                                </button>
+                              )}
+                            </div>
+                          </td>
                         )}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                      </tr>
+                    ))}
+
+                    {!invoices.length && (
+                      <tr>
+                        <td
+                          colSpan={invoiceCols.count}
+                          className="px-6 py-16 text-center"
+                        >
+                          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl text-slate-400 dark:bg-slate-800 dark:text-slate-500">
+                            ▤
+                          </div>
+                          <p className="mt-4 font-bold text-slate-800 dark:text-slate-100">
+                            No sales invoices found
+                          </p>
+                          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            Create an invoice to see it listed here.
+                          </p>
+                          {permissions.can_create && (
+                            <button
+                              type="button"
+                              onClick={startManualInvoice}
+                              className={`${primaryButton} mt-4`}
+                            >
+                              + Add Manual Invoice
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="flex flex-col justify-between gap-2 rounded-b-3xl border-t border-slate-100 bg-slate-50/70 px-5 py-4 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400 sm:flex-row sm:items-center sm:px-6">
+              <span>
+                Showing {invoices.length} invoice
+                {invoices.length === 1 ? "" : "s"}
+              </span>
+              <span>Amounts displayed in PKR format.</span>
             </div>
-          )}
+          </section>
+        )}
 
-          <div className="flex flex-col justify-between gap-2 rounded-b-3xl border-t border-slate-100 bg-slate-50/70 px-5 py-4 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400 sm:flex-row sm:items-center sm:px-6">
-            <span>
-              Showing {invoices.length} invoice
-              {invoices.length === 1 ? "" : "s"}
-            </span>
-            <span>Amounts displayed in PKR format.</span>
-          </div>
-        </section>
-      )}
-
-      {/* ACCOUNTING LINES MODAL */}
-      {accountingInvoice && (
-        <Modal
-          wide
-          onClose={() => {
-            setAccountingInvoice(null);
-            setAccountingLines([]);
-            setAccountingError("");
-          }}
-        >
-          <ModalHeader
-            title="Accounting Entries"
-            subtitle={`Invoice: ${accountingInvoice.invoice_number}`}
+        {/* ACCOUNTING LINES MODAL */}
+        {accountingInvoice && (
+          <Modal
+            wide
             onClose={() => {
               setAccountingInvoice(null);
               setAccountingLines([]);
               setAccountingError("");
             }}
-          />
-
-          <div className="max-h-[72vh] space-y-5 overflow-y-auto bg-slate-50/70 p-4 dark:bg-slate-950/50 sm:p-6">
-            {accountingError && (
-              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-                {accountingError}
-              </div>
-            )}
-
-            {accountingLoading ? (
-              <div className="flex flex-col items-center justify-center gap-3 py-16">
-                <div className="h-9 w-9 animate-spin rounded-full border-4 border-indigo-100 border-t-indigo-600 dark:border-slate-700 dark:border-t-indigo-400" />
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Loading accounting entries...
-                </p>
-              </div>
-            ) : accountingError ? null : (
-              <>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm dark:border-blue-900/60 dark:bg-slate-900">
-                    <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
-                      Total Debit
-                    </p>
-                    <p className="mt-3 text-2xl font-black text-blue-700 dark:text-blue-300">
-                      {formatMoney(accountingTotalDebit)}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-purple-100 bg-white p-5 shadow-sm dark:border-purple-900/60 dark:bg-slate-900">
-                    <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
-                      Total Credit
-                    </p>
-                    <p className="mt-3 text-2xl font-black text-purple-700 dark:text-purple-300">
-                      {formatMoney(accountingTotalCredit)}
-                    </p>
-                  </div>
-
-                  <div
-                    className={`rounded-2xl border bg-white p-5 shadow-sm dark:bg-slate-900 ${Math.abs(
-                      accountingTotalDebit - accountingTotalCredit
-                    ) < 1
-                      ? "border-emerald-200 dark:border-emerald-800"
-                      : "border-red-200 dark:border-red-800"
-                      }`}
-                  >
-                    <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
-                      Difference
-                    </p>
-                    <p className="mt-3 text-2xl font-black text-slate-900 dark:text-white">
-                      {formatMoney(
-                        Math.abs(accountingTotalDebit - accountingTotalCredit)
-                      )}
-                    </p>
-                    <p
-                      className={`mt-1 text-xs font-bold ${Math.abs(
-                        accountingTotalDebit - accountingTotalCredit
-                      ) < 1
-                        ? "text-emerald-700 dark:text-emerald-300"
-                        : "text-red-700 dark:text-red-300"
-                        }`}
-                    >
-                      {Math.abs(
-                        accountingTotalDebit - accountingTotalCredit
-                      ) < 1
-                        ? "✓ Totals match"
-                        : "! Totals do not match"}
-                    </p>
-                  </div>
-                </div>
-
-                {accountingJournals.map((journal) => {
-                  const balanced =
-                    Math.abs(journal.debit - journal.credit) < 1;
-
-                  return (
-                    <div
-                      key={journal.journal_id}
-                      className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
-                    >
-                      <div className="flex flex-col justify-between gap-3 border-b border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:p-5">
-                        <div>
-                          <h3 className="font-extrabold text-slate-900 dark:text-white">
-                            Journal:{" "}
-                            {journal.journal_number || journal.journal_id}
-                          </h3>
-                          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                            Type:{" "}
-                            {journal.reference_type === "SALES_COGS"
-                              ? "Cost of Goods Sold"
-                              : journal.reference_type === "SALES_INVOICE"
-                                ? "Sales Invoice"
-                                : journal.reference_type || "-"}
-                            {" · "}
-                            Date: {formatDate(journal.journal_date)}
-                          </p>
-                          {journal.journal_description && (
-                            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                              {journal.journal_description}
-                            </p>
-                          )}
-                        </div>
-
-                        <span
-                          className={`w-fit rounded-full px-3 py-1.5 text-xs font-extrabold ${balanced
-                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
-                            : "bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300"
-                            }`}
-                        >
-                          {balanced ? "✓ Balanced" : "! Unbalanced"}
-                        </span>
-                      </div>
-
-                      <div className="w-full overflow-x-auto [scrollbar-width:thin]">
-                        <table className="w-full text-sm">
-                          <thead className="bg-slate-50 dark:bg-slate-800">
-                            <tr>
-                              {["Account Code", "Account Name", "Description"].map(
-                                (heading) => (
-                                  <th
-                                    key={heading}
-                                    className="px-4 py-3 text-left font-bold text-slate-500 dark:text-slate-300"
-                                  >
-                                    {heading}
-                                  </th>
-                                )
-                              )}
-                              <th className="px-4 py-3 text-right font-bold text-slate-500 dark:text-slate-300">
-                                Debit
-                              </th>
-                              <th className="px-4 py-3 text-right font-bold text-slate-500 dark:text-slate-300">
-                                Credit
-                              </th>
-                            </tr>
-                          </thead>
-
-                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {(journal.lines || []).map((line, index) => (
-                              <tr
-                                key={`${journal.journal_id}-${line.account_id}-${index}`}
-                                className="hover:bg-slate-50 dark:hover:bg-slate-800/60"
-                              >
-                                <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-700 dark:text-slate-200">
-                                  {line.account_code || "-"}
-                                </td>
-                                <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
-                                  {line.account_name || "Unknown Account"}
-                                </td>
-                                <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
-                                  {line.line_description ||
-                                    line.journal_description ||
-                                    "-"}
-                                </td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-blue-700 dark:text-blue-300">
-                                  {Number(line.debit || 0) > 0
-                                    ? formatMoney(line.debit)
-                                    : "-"}
-                                </td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-purple-700 dark:text-purple-300">
-                                  {Number(line.credit || 0) > 0
-                                    ? formatMoney(line.credit)
-                                    : "-"}
-                                </td>
-                              </tr>
-                            ))}
-
-                            <tr className="bg-slate-50 font-extrabold dark:bg-slate-800">
-                              <td
-                                colSpan={3}
-                                className="px-4 py-3 text-right text-slate-800 dark:text-slate-100"
-                              >
-                                Journal Total
-                              </td>
-                              <td className="px-4 py-3 text-right text-blue-700 dark:text-blue-300">
-                                {formatMoney(journal.debit)}
-                              </td>
-                              <td className="px-4 py-3 text-right text-purple-700 dark:text-purple-300">
-                                {formatMoney(journal.credit)}
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {!accountingLines.length && (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center dark:border-amber-900 dark:bg-amber-950/40">
-                    <p className="font-bold text-amber-900 dark:text-amber-300">
-                      No accounting entries found
-                    </p>
-                    <p className="mt-2 text-sm text-amber-800 dark:text-amber-400">
-                      Check whether this invoice has generated journal entries
-                      in the financial ledger.
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          <div className="flex justify-end border-t border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 sm:px-6">
-            <button
-              type="button"
-              onClick={() => {
+          >
+            <ModalHeader
+              title="Accounting Entries"
+              subtitle={`Invoice: ${accountingInvoice.invoice_number}`}
+              onClose={() => {
                 setAccountingInvoice(null);
                 setAccountingLines([]);
                 setAccountingError("");
               }}
-              className={secondaryButton}
-            >
-              Close
-            </button>
-          </div>
-        </Modal>
-      )}
+            />
 
-      {/* INVOICE PREVIEW MODAL */}
-      {selectedInvoice && (
-        <Modal wide onClose={() => setSelectedInvoice(null)}>
-          <ModalHeader
-            title="Invoice Preview"
-            subtitle={`Invoice ${selectedInvoice.invoice.invoice_number}`}
-            onClose={() => setSelectedInvoice(null)}
-          />
-
-          <div
-            id="invoice-preview"
-            className="max-h-[72vh] overflow-y-auto bg-white p-5 text-slate-900 sm:p-8"
-          >
-            <div className="flex flex-col justify-between gap-5 border-b-2 border-slate-900 pb-6 sm:flex-row sm:items-start">
-              <div>
-                <div className="inline-flex items-center gap-2">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-900 text-xl font-black text-white">
-                    G
-                  </span>
-                  <h1 className="text-3xl font-black tracking-tight text-slate-900">
-                    GOLDENLAKE
-                  </h1>
+            <div className="max-h-[72vh] space-y-5 overflow-y-auto bg-slate-50/70 p-4 dark:bg-slate-950/50 sm:p-6">
+              {accountingError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                  {accountingError}
                 </div>
-                <p className="mt-2 text-sm text-slate-500">Sales Invoice</p>
-              </div>
+              )}
 
-              <div className="sm:text-right">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                  Invoice Number
-                </p>
-                <p className="mt-1 text-xl font-extrabold text-slate-900">
-                  {selectedInvoice.invoice.invoice_number}
-                </p>
-                <p className="mt-2 text-sm text-slate-600">
-                  Date: {formatDate(selectedInvoice.invoice.invoice_date)}
-                </p>
-                {selectedInvoice.invoice.delivery_challan_number && (
-                  <p className="mt-1 text-sm text-slate-600">
-                    Delivery Challan:{" "}
-                    {selectedInvoice.invoice.delivery_challan_number}
+              {accountingLoading ? (
+                <div className="flex flex-col items-center justify-center gap-3 py-16">
+                  <div className="h-9 w-9 animate-spin rounded-full border-4 border-indigo-100 border-t-indigo-600 dark:border-slate-700 dark:border-t-indigo-400" />
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Loading accounting entries...
                   </p>
-                )}
-                <div className="mt-2 sm:flex sm:justify-end">
-                  <StatusBadge status={selectedInvoice.invoice.status} />
                 </div>
-              </div>
-            </div>
+              ) : accountingError ? null : (
+                <>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm dark:border-blue-900/60 dark:bg-slate-900">
+                      <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                        Total Debit
+                      </p>
+                      <p className="mt-3 text-2xl font-black text-blue-700 dark:text-blue-300">
+                        {formatMoney(accountingTotalDebit)}
+                      </p>
+                    </div>
 
-            <div className="grid grid-cols-1 gap-5 border-b border-slate-200 py-6 sm:grid-cols-2">
-              <div className="rounded-2xl bg-slate-50 p-5">
-                <p className="mb-3 text-xs font-extrabold uppercase tracking-widest text-slate-400">
-                  Bill To
-                </p>
-                <p className="text-lg font-bold text-slate-900">
-                  {selectedInvoice.invoice.customer_name || "-"}
-                </p>
-                <p className="mt-1 text-sm text-slate-500">
-                  {selectedInvoice.invoice.customer_code || "-"}
-                </p>
-                {selectedInvoice.invoice.customer_phone && (
-                  <p className="mt-1 text-sm text-slate-600">
-                    {selectedInvoice.invoice.customer_phone}
-                  </p>
-                )}
-                {selectedInvoice.invoice.customer_email && (
-                  <p className="mt-1 break-all text-sm text-slate-600">
-                    {selectedInvoice.invoice.customer_email}
-                  </p>
-                )}
-              </div>
+                    <div className="rounded-2xl border border-purple-100 bg-white p-5 shadow-sm dark:border-purple-900/60 dark:bg-slate-900">
+                      <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                        Total Credit
+                      </p>
+                      <p className="mt-3 text-2xl font-black text-purple-700 dark:text-purple-300">
+                        {formatMoney(accountingTotalCredit)}
+                      </p>
+                    </div>
 
-              <div className="rounded-2xl bg-slate-50 p-5">
-                <p className="mb-3 text-xs font-extrabold uppercase tracking-widest text-slate-400">
-                  Warehouse
-                </p>
-                <p className="text-lg font-bold text-slate-900">
-                  {selectedInvoice.invoice.warehouse_name || "-"}
-                </p>
-                <p className="mt-1 text-sm text-slate-500">
-                  {selectedInvoice.invoice.warehouse_code || "-"}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-6 w-full overflow-x-auto rounded-xl border border-slate-200 [scrollbar-width:thin]">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50">
-                  <tr>
-                    {[
-                      "#",
-                      "Product",
-                      "Qty",
-                      "Unit",
-                      "Price",
-                      "Discount",
-                      "Tax",
-                      "Total",
-                    ].map((heading, index) => (
-                      <th
-                        key={`${heading}-${index}`}
-                        className={`px-4 py-3 text-xs font-extrabold uppercase tracking-wider text-slate-500 ${index === 2 || index >= 4
-                          ? "text-right"
-                          : "text-left"
+                    <div
+                      className={`rounded-2xl border bg-white p-5 shadow-sm dark:bg-slate-900 ${Math.abs(
+                        accountingTotalDebit - accountingTotalCredit
+                      ) < 1
+                        ? "border-emerald-200 dark:border-emerald-800"
+                        : "border-red-200 dark:border-red-800"
+                        }`}
+                    >
+                      <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                        Difference
+                      </p>
+                      <p className="mt-3 text-2xl font-black text-slate-900 dark:text-white">
+                        {formatMoney(
+                          Math.abs(accountingTotalDebit - accountingTotalCredit)
+                        )}
+                      </p>
+                      <p
+                        className={`mt-1 text-xs font-bold ${Math.abs(
+                          accountingTotalDebit - accountingTotalCredit
+                        ) < 1
+                          ? "text-emerald-700 dark:text-emerald-300"
+                          : "text-red-700 dark:text-red-300"
                           }`}
                       >
-                        {heading}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
+                        {Math.abs(
+                          accountingTotalDebit - accountingTotalCredit
+                        ) < 1
+                          ? "✓ Totals match"
+                          : "! Totals do not match"}
+                      </p>
+                    </div>
+                  </div>
 
-                <tbody className="divide-y divide-slate-100">
-                  {selectedInvoice.items.map((item, index) => (
-                    <tr key={item.invoice_item_id || index}>
-                      <td className="px-4 py-4 text-slate-500">{index + 1}</td>
-                      <td className="px-4 py-4">
-                        <p className="font-bold text-slate-800">
-                          {item.product_name || "-"}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-400">
-                          {item.sku || ""}
-                        </p>
-                      </td>
-                      <td className="px-4 py-4 text-right font-semibold">
-                        {item.quantity}
-                      </td>
-                      <td className="px-4 py-4">{item.unit || "-"}</td>
-                      <td className="px-4 py-4 text-right">
-                        {formatMoney(item.unit_price)}
-                      </td>
-                      <td className="px-4 py-4 text-right">
-                        {formatMoney(item.discount)}
-                      </td>
-                      <td className="px-4 py-4 text-right">
-                        {formatMoney(item.tax)}
-                      </td>
-                      <td className="px-4 py-4 text-right font-bold">
-                        {formatMoney(item.line_total)}
-                      </td>
-                    </tr>
-                  ))}
+                  {accountingJournals.map((journal) => {
+                    const balanced =
+                      Math.abs(journal.debit - journal.credit) < 1;
 
-                  {!selectedInvoice.items.length && (
-                    <tr>
-                      <td colSpan={8} className="p-8 text-center text-slate-500">
-                        No invoice items found.
-                      </td>
-                    </tr>
+                    return (
+                      <div
+                        key={journal.journal_id}
+                        className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                      >
+                        <div className="flex flex-col justify-between gap-3 border-b border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:p-5">
+                          <div>
+                            <h3 className="font-extrabold text-slate-900 dark:text-white">
+                              Journal:{" "}
+                              {journal.journal_number || journal.journal_id}
+                            </h3>
+                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                              Type:{" "}
+                              {journal.reference_type === "SALES_COGS"
+                                ? "Cost of Goods Sold"
+                                : journal.reference_type === "SALES_INVOICE"
+                                  ? "Sales Invoice"
+                                  : journal.reference_type || "-"}
+                              {" · "}
+                              Date: {formatDate(journal.journal_date)}
+                            </p>
+                            {journal.journal_description && (
+                              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                                {journal.journal_description}
+                              </p>
+                            )}
+                          </div>
+
+                          <span
+                            className={`w-fit rounded-full px-3 py-1.5 text-xs font-extrabold ${balanced
+                              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                              : "bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300"
+                              }`}
+                          >
+                            {balanced ? "✓ Balanced" : "! Unbalanced"}
+                          </span>
+                        </div>
+
+                        <div className="w-full overflow-x-auto [scrollbar-width:thin]">
+                          <table className="w-full text-sm">
+                            <thead className="bg-slate-50 dark:bg-slate-800">
+                              <tr>
+                                {["Account Code", "Account Name", "Description"].map(
+                                  (heading) => (
+                                    <th
+                                      key={heading}
+                                      className="px-4 py-3 text-left font-bold text-slate-500 dark:text-slate-300"
+                                    >
+                                      {heading}
+                                    </th>
+                                  )
+                                )}
+                                <th className="px-4 py-3 text-right font-bold text-slate-500 dark:text-slate-300">
+                                  Debit
+                                </th>
+                                <th className="px-4 py-3 text-right font-bold text-slate-500 dark:text-slate-300">
+                                  Credit
+                                </th>
+                              </tr>
+                            </thead>
+
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                              {(journal.lines || []).map((line, index) => (
+                                <tr
+                                  key={`${journal.journal_id}-${line.account_id}-${index}`}
+                                  className="hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                                >
+                                  <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-700 dark:text-slate-200">
+                                    {line.account_code || "-"}
+                                  </td>
+                                  <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
+                                    {line.account_name || "Unknown Account"}
+                                  </td>
+                                  <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
+                                    {line.line_description ||
+                                      line.journal_description ||
+                                      "-"}
+                                  </td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-blue-700 dark:text-blue-300">
+                                    {Number(line.debit || 0) > 0
+                                      ? formatMoney(line.debit)
+                                      : "-"}
+                                  </td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-purple-700 dark:text-purple-300">
+                                    {Number(line.credit || 0) > 0
+                                      ? formatMoney(line.credit)
+                                      : "-"}
+                                  </td>
+                                </tr>
+                              ))}
+
+                              <tr className="bg-slate-50 font-extrabold dark:bg-slate-800">
+                                <td
+                                  colSpan={3}
+                                  className="px-4 py-3 text-right text-slate-800 dark:text-slate-100"
+                                >
+                                  Journal Total
+                                </td>
+                                <td className="px-4 py-3 text-right text-blue-700 dark:text-blue-300">
+                                  {formatMoney(journal.debit)}
+                                </td>
+                                <td className="px-4 py-3 text-right text-purple-700 dark:text-purple-300">
+                                  {formatMoney(journal.credit)}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {!accountingLines.length && (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center dark:border-amber-900 dark:bg-amber-950/40">
+                      <p className="font-bold text-amber-900 dark:text-amber-300">
+                        No accounting entries found
+                      </p>
+                      <p className="mt-2 text-sm text-amber-800 dark:text-amber-400">
+                        Check whether this invoice has generated journal entries
+                        in the financial ledger.
+                      </p>
+                    </div>
                   )}
-                </tbody>
-              </table>
+                </>
+              )}
             </div>
 
-            <div className="mt-6 flex justify-end">
-              <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between gap-3 text-slate-600">
-                    <span>Subtotal</span>
-                    <span className="font-semibold text-slate-900">
-                      {formatMoney(selectedInvoice.invoice.subtotal)}
+            <div className="flex justify-end border-t border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 sm:px-6">
+              <button
+                type="button"
+                onClick={() => {
+                  setAccountingInvoice(null);
+                  setAccountingLines([]);
+                  setAccountingError("");
+                }}
+                className={secondaryButton}
+              >
+                Close
+              </button>
+            </div>
+          </Modal>
+        )}
+
+        {/* INVOICE PREVIEW MODAL */}
+        {selectedInvoice && (
+          <Modal wide onClose={() => setSelectedInvoice(null)}>
+            <ModalHeader
+              title="Invoice Preview"
+              subtitle={`Invoice ${selectedInvoice.invoice.invoice_number}`}
+              onClose={() => setSelectedInvoice(null)}
+            />
+
+            <div
+              id="invoice-preview"
+              className="max-h-[72vh] overflow-y-auto bg-white p-5 text-slate-900 sm:p-8"
+            >
+              <div className="flex flex-col justify-between gap-5 border-b-2 border-slate-900 pb-6 sm:flex-row sm:items-start">
+                <div>
+                  <div className="inline-flex items-center gap-2">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-900 text-xl font-black text-white">
+                      G
                     </span>
+                    <h1 className="text-3xl font-black tracking-tight text-slate-900">
+                      GOLDENLAKE
+                    </h1>
                   </div>
-                  <div className="flex justify-between gap-3 text-slate-600">
-                    <span>Discount</span>
-                    <span className="font-semibold text-slate-900">
-                      -{formatMoney(selectedInvoice.invoice.discount)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between gap-3 text-slate-600">
-                    <span>Tax</span>
-                    <span className="font-semibold text-slate-900">
-                      +{formatMoney(selectedInvoice.invoice.tax)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between gap-3 border-t border-slate-200 pt-4 text-base">
-                    <span className="font-extrabold text-slate-900">Total</span>
-                    <span className="font-black text-blue-700">
-                      {formatMoney(selectedInvoice.invoice.total_amount)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between gap-3 text-slate-500">
-                    <span>Paid</span>
-                    <span className="font-semibold text-emerald-700">
-                      {formatMoney(selectedInvoice.invoice.paid_amount)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between gap-3 text-slate-500">
-                    <span>Balance</span>
-                    <span className="font-semibold text-amber-700">
-                      {formatMoney(selectedInvoice.invoice.balance_amount)}
-                    </span>
+                  <p className="mt-2 text-sm text-slate-500">Sales Invoice</p>
+                </div>
+
+                <div className="sm:text-right">
+                  <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                    Invoice Number
+                  </p>
+                  <p className="mt-1 text-xl font-extrabold text-slate-900">
+                    {selectedInvoice.invoice.invoice_number}
+                  </p>
+                  <p className="mt-2 text-sm text-slate-600">
+                    Date: {formatDate(selectedInvoice.invoice.invoice_date)}
+                  </p>
+                  {selectedInvoice.invoice.delivery_challan_number && (
+                    <p className="mt-1 text-sm text-slate-600">
+                      Delivery Challan:{" "}
+                      {selectedInvoice.invoice.delivery_challan_number}
+                    </p>
+                  )}
+                  <div className="mt-2 sm:flex sm:justify-end">
+                    <StatusBadge status={selectedInvoice.invoice.status} />
                   </div>
                 </div>
               </div>
-            </div>
 
-            {selectedInvoice.invoice.notes && (
-              <div className="mt-6 border-t border-slate-200 pt-5">
-                <p className="font-bold text-slate-900">Notes</p>
-                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
-                  {selectedInvoice.invoice.notes}
-                </p>
+              <div className="grid grid-cols-1 gap-5 border-b border-slate-200 py-6 sm:grid-cols-2">
+                <div className="rounded-2xl bg-slate-50 p-5">
+                  <p className="mb-3 text-xs font-extrabold uppercase tracking-widest text-slate-400">
+                    Bill To
+                  </p>
+                  <p className="text-lg font-bold text-slate-900">
+                    {selectedInvoice.invoice.customer_name || "-"}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {selectedInvoice.invoice.customer_code || "-"}
+                  </p>
+                  {selectedInvoice.invoice.customer_phone && (
+                    <p className="mt-1 text-sm text-slate-600">
+                      {selectedInvoice.invoice.customer_phone}
+                    </p>
+                  )}
+                  {selectedInvoice.invoice.customer_email && (
+                    <p className="mt-1 break-all text-sm text-slate-600">
+                      {selectedInvoice.invoice.customer_email}
+                    </p>
+                  )}
+                </div>
+
+                <div className="rounded-2xl bg-slate-50 p-5">
+                  <p className="mb-3 text-xs font-extrabold uppercase tracking-widest text-slate-400">
+                    Warehouse
+                  </p>
+                  <p className="text-lg font-bold text-slate-900">
+                    {selectedInvoice.invoice.warehouse_name || "-"}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {selectedInvoice.invoice.warehouse_code || "-"}
+                  </p>
+                </div>
               </div>
-            )}
 
-            <div className="mt-8 border-t border-slate-100 pt-5 text-center text-xs text-slate-400">
-              Thank you for your business.
+              <div className="mt-6 w-full overflow-x-auto rounded-xl border border-slate-200 [scrollbar-width:thin]">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      {[
+                        "#",
+                        "Product",
+                        "Qty",
+                        "Unit",
+                        "Price",
+                        "Discount",
+                        "Tax",
+                        "Total",
+                      ].map((heading, index) => (
+                        <th
+                          key={`${heading}-${index}`}
+                          className={`px-4 py-3 text-xs font-extrabold uppercase tracking-wider text-slate-500 ${index === 2 || index >= 4
+                            ? "text-right"
+                            : "text-left"
+                            }`}
+                        >
+                          {heading}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-100">
+                    {selectedInvoice.items.map((item, index) => (
+                      <tr key={item.invoice_item_id || index}>
+                        <td className="px-4 py-4 text-slate-500">{index + 1}</td>
+                        <td className="px-4 py-4">
+                          <p className="font-bold text-slate-800">
+                            {item.product_name || "-"}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-400">
+                            {item.sku || ""}
+                          </p>
+                        </td>
+                        <td className="px-4 py-4 text-right font-semibold">
+                          {item.quantity}
+                        </td>
+                        <td className="px-4 py-4">{item.unit || "-"}</td>
+                        <td className="px-4 py-4 text-right">
+                          {formatMoney(item.unit_price)}
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          {formatMoney(item.discount)}
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          {formatMoney(item.tax)}
+                        </td>
+                        <td className="px-4 py-4 text-right font-bold">
+                          {formatMoney(item.line_total)}
+                        </td>
+                      </tr>
+                    ))}
+
+                    {!selectedInvoice.items.length && (
+                      <tr>
+                        <td colSpan={8} className="p-8 text-center text-slate-500">
+                          No invoice items found.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mt-6 flex justify-end">
+                <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                  <div className="space-y-3 text-sm">
+                    <div className="flex justify-between gap-3 text-slate-600">
+                      <span>Subtotal</span>
+                      <span className="font-semibold text-slate-900">
+                        {formatMoney(selectedInvoice.invoice.subtotal)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-3 text-slate-600">
+                      <span>Discount</span>
+                      <span className="font-semibold text-slate-900">
+                        -{formatMoney(selectedInvoice.invoice.discount)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-3 text-slate-600">
+                      <span>Tax</span>
+                      <span className="font-semibold text-slate-900">
+                        +{formatMoney(selectedInvoice.invoice.tax)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-3 border-t border-slate-200 pt-4 text-base">
+                      <span className="font-extrabold text-slate-900">Total</span>
+                      <span className="font-black text-blue-700">
+                        {formatMoney(selectedInvoice.invoice.total_amount)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-3 text-slate-500">
+                      <span>Paid</span>
+                      <span className="font-semibold text-emerald-700">
+                        {formatMoney(selectedInvoice.invoice.paid_amount)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-3 text-slate-500">
+                      <span>Balance</span>
+                      <span className="font-semibold text-amber-700">
+                        {formatMoney(selectedInvoice.invoice.balance_amount)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {selectedInvoice.invoice.notes && (
+                <div className="mt-6 border-t border-slate-200 pt-5">
+                  <p className="font-bold text-slate-900">Notes</p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                    {selectedInvoice.invoice.notes}
+                  </p>
+                </div>
+              )}
+
+              <div className="mt-8 border-t border-slate-100 pt-5 text-center text-xs text-slate-400">
+                Thank you for your business.
+              </div>
             </div>
-          </div>
 
-          <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 sm:px-6">
-            {permissions.can_update && (
+            <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 sm:px-6">
+              {permissions.can_update && (
+                <button
+                  type="button"
+                  onClick={() => editInvoice(selectedInvoice.invoice.invoice_id)}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-700 hover:bg-amber-100 dark:bg-amber-950/60 dark:text-amber-300 dark:hover:bg-amber-900/60"
+                >
+                  Edit Invoice
+                </button>
+              )}
+
               <button
                 type="button"
-                onClick={() => editInvoice(selectedInvoice.invoice.invoice_id)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-700 hover:bg-amber-100 dark:bg-amber-950/60 dark:text-amber-300 dark:hover:bg-amber-900/60"
+                onClick={printInvoice}
+                className={secondaryButton}
               >
-                Edit Invoice
+                Print
               </button>
-            )}
 
-            <button
-              type="button"
-              onClick={printInvoice}
-              className={secondaryButton}
-            >
-              Print
-            </button>
+              <button
+                type="button"
+                onClick={downloadInvoicePDF}
+                className={primaryButton}
+              >
+                Download PDF
+              </button>
 
-            <button
-              type="button"
-              onClick={downloadInvoicePDF}
-              className={primaryButton}
-            >
-              Download PDF
-            </button>
+              <button
+                type="button"
+                onClick={() => setSelectedInvoice(null)}
+                className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600"
+              >
+                Close
+              </button>
+            </div>
+          </Modal>
+        )}
 
-            <button
-              type="button"
-              onClick={() => setSelectedInvoice(null)}
-              className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600"
-            >
-              Close
-            </button>
+        {/* LOADING OVERLAY */}
+        {invoiceLoading && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-[2px]">
+            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-blue-100 border-t-blue-600 dark:border-slate-700 dark:border-t-blue-400" />
+              <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                Loading invoice...
+              </span>
+            </div>
           </div>
-        </Modal>
-      )}
-
-      {/* LOADING OVERLAY */}
-      {invoiceLoading && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-[2px]">
-          <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
-            <span className="h-5 w-5 animate-spin rounded-full border-2 border-blue-100 border-t-blue-600 dark:border-slate-700 dark:border-t-blue-400" />
-            <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
-              Loading invoice...
-            </span>
-          </div>
-        </div>
-      )}
+        )}
     </div>
   );
 }

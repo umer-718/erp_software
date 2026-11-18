@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -140,9 +139,10 @@ function StatusBadge({ status }) {
 
     return (
         <span
-            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${styles[value] ||
+            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                styles[value] ||
                 "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                }`}
+            }`}
         >
             {value}
         </span>
@@ -157,6 +157,11 @@ export default function PurchaseInvoicesPage() {
     const [receipts, setReceipts] = useState([]);
 
     const [form, setForm] = useState(emptyForm);
+
+    // QUICK ITEM ENTRY
+    const [newItem, setNewItem] = useState({ ...emptyItem });
+    const [newItemError, setNewItemError] = useState("");
+
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("ALL");
 
@@ -188,8 +193,6 @@ export default function PurchaseInvoicesPage() {
     const canUpdate = permissions.can_update === true;
     const canDelete = permissions.can_delete === true;
 
-    // A new draft requires CREATE.
-    // Updating an existing draft requires UPDATE.
     const canSaveForm = isEditing ? canUpdate : canCreate;
 
     // ========================================================
@@ -230,8 +233,6 @@ export default function PurchaseInvoicesPage() {
         setMessage("");
 
         try {
-            // This endpoint returns permissions for the currently
-            // authenticated user's role. No roleId is supplied here.
             const permissionData = await api(
                 "/api/auth/my-permissions"
             );
@@ -258,7 +259,6 @@ export default function PurchaseInvoicesPage() {
             setPermissions(currentPermissions);
             setPermissionsLoading(false);
 
-            // Do not load invoice data if the role cannot view this module.
             if (!currentPermissions.can_view) {
                 setInvoices([]);
                 setSuppliers([]);
@@ -464,12 +464,12 @@ export default function PurchaseInvoicesPage() {
 
         const loadInitialData = async () => {
             if (!isActive) return;
-
             await loadData();
         };
 
-        // Defer execution until after the effect has completed.
-        const task = Promise.resolve().then(loadInitialData);
+        // Defer the call so state updates do not run synchronously
+        // inside the effect body.
+        Promise.resolve().then(loadInitialData);
 
         return () => {
             isActive = false;
@@ -497,20 +497,6 @@ export default function PurchaseInvoicesPage() {
                     ? { ...item, [field]: value }
                     : item
             ),
-        }));
-    }
-
-    function addItem() {
-        if (!canSaveForm || form.sourceType !== "MANUAL") {
-            return;
-        }
-
-        setForm((previous) => ({
-            ...previous,
-            items: [
-                ...previous.items,
-                { ...emptyItem },
-            ],
         }));
     }
 
@@ -556,6 +542,115 @@ export default function PurchaseInvoicesPage() {
     }
 
     // ========================================================
+    // QUICK ITEM ENTRY
+    // ========================================================
+
+    function updateNewItem(field, value) {
+        setNewItem((previous) => ({
+            ...previous,
+            [field]: value,
+        }));
+    }
+
+    function selectNewProduct(productId) {
+        const product = products.find(
+            (item) => item.id === String(productId)
+        );
+
+        if (!product) {
+            setNewItem((previous) => ({
+                ...previous,
+                productId: "",
+            }));
+            return;
+        }
+
+        setNewItem((previous) => ({
+            ...previous,
+            productId: product.id,
+            description: product.name,
+            uom: product.unit,
+            unitCost: String(product.cost),
+        }));
+
+        setNewItemError("");
+    }
+
+    function addItem() {
+        if (!canSaveForm || form.sourceType !== "MANUAL") {
+            return;
+        }
+
+        setNewItemError("");
+
+        const quantity = Number(newItem.quantity);
+        const unitCost = Number(newItem.unitCost);
+        const discount = Number(newItem.discount);
+        const tax = Number(newItem.tax);
+
+        if (!newItem.productId) {
+            setNewItemError("Please select a product.");
+            return;
+        }
+
+        if (!newItem.description.trim()) {
+            setNewItemError("Please enter an item description.");
+            return;
+        }
+
+        if (!newItem.uom.trim()) {
+            setNewItemError("Please enter the unit of measure.");
+            return;
+        }
+
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+            setNewItemError("Quantity must be greater than zero.");
+            return;
+        }
+
+        if (
+            !Number.isFinite(unitCost) ||
+            unitCost < 0 ||
+            !Number.isFinite(discount) ||
+            discount < 0 ||
+            !Number.isFinite(tax) ||
+            tax < 0
+        ) {
+            setNewItemError(
+                "Unit cost, discount and tax must be valid non-negative numbers."
+            );
+            return;
+        }
+
+        const lineTotal =
+            quantity * unitCost - discount + tax;
+
+        if (lineTotal < 0) {
+            setNewItemError("Line total cannot be negative.");
+            return;
+        }
+
+        const itemToAdd = {
+            productId: newItem.productId,
+            itemReceiptItemId: "",
+            description: newItem.description.trim(),
+            uom: newItem.uom.trim(),
+            quantity: String(quantity),
+            unitCost: String(unitCost),
+            discount: String(discount),
+            tax: String(tax),
+        };
+
+        setForm((previous) => ({
+            ...previous,
+            items: [...previous.items, itemToAdd],
+        }));
+
+        setNewItem({ ...emptyItem });
+        setNewItemError("");
+    }
+
+    // ========================================================
     // ITEM TOTALS
     // ========================================================
 
@@ -597,8 +692,11 @@ export default function PurchaseInvoicesPage() {
         setForm({
             ...emptyForm,
             purchaseDate: new Date().toISOString().slice(0, 10),
-            items: [{ ...emptyItem }],
+            items: [],
         });
+
+        setNewItem({ ...emptyItem });
+        setNewItemError("");
 
         setIsEditing(false);
         setViewingInvoice(null);
@@ -611,7 +709,14 @@ export default function PurchaseInvoicesPage() {
         setShowForm(false);
         setIsEditing(false);
         setViewingInvoice(null);
-        setForm(emptyForm);
+
+        setForm({
+            ...emptyForm,
+            items: [],
+        });
+
+        setNewItem({ ...emptyItem });
+        setNewItemError("");
     }
 
     // ========================================================
@@ -629,7 +734,7 @@ export default function PurchaseInvoicesPage() {
                 itemReceiptId: "",
                 supplierId: "",
                 warehouseId: "",
-                items: [{ ...emptyItem }],
+                items: [],
             }));
 
             return;
@@ -726,8 +831,30 @@ export default function PurchaseInvoicesPage() {
                 return;
             }
 
-            if (Number(item.quantity) <= 0) {
+            if (!item.description?.trim()) {
+                setError(`Enter a description on line ${index + 1}.`);
+                return;
+            }
+
+            if (!item.uom?.trim()) {
+                setError(`Enter a unit of measure on line ${index + 1}.`);
+                return;
+            }
+
+            if (
+                !Number.isFinite(Number(item.quantity)) ||
+                Number(item.quantity) <= 0
+            ) {
                 setError(`Enter a valid quantity on line ${index + 1}.`);
+                return;
+            }
+
+            if (
+                !Number.isFinite(Number(item.unitCost)) ||
+                !Number.isFinite(Number(item.discount)) ||
+                !Number.isFinite(Number(item.tax))
+            ) {
+                setError(`Enter valid numeric values on line ${index + 1}.`);
                 return;
             }
 
@@ -761,10 +888,12 @@ export default function PurchaseInvoicesPage() {
         }
 
         if (
+            !Number.isFinite(Number(form.discount)) ||
+            !Number.isFinite(Number(form.tax)) ||
             Number(form.discount) < 0 ||
             Number(form.tax) < 0
         ) {
-            setError("Invoice discount and tax cannot be negative.");
+            setError("Invoice discount and tax must be valid non-negative numbers.");
             return;
         }
 
@@ -874,6 +1003,9 @@ export default function PurchaseInvoicesPage() {
                 items: items.map(normalizeInvoiceItem),
             });
 
+            setNewItem({ ...emptyItem });
+            setNewItemError("");
+
             setIsEditing(true);
             setShowForm(true);
             setViewingInvoice(null);
@@ -918,7 +1050,6 @@ export default function PurchaseInvoicesPage() {
 
     // ========================================================
     // APPROVE INVOICE
-    // Approval requires UPDATE permission.
     // ========================================================
 
     async function approveInvoice(invoice) {
@@ -1075,7 +1206,6 @@ export default function PurchaseInvoicesPage() {
         );
     }
 
-    // A user without VIEW permission cannot access the page.
     if (!canView) {
         return (
             <div className="min-h-screen bg-gray-50 p-6 dark:bg-gray-950">
@@ -1308,8 +1438,11 @@ export default function PurchaseInvoicesPage() {
                                                     ...previous,
                                                     sourceType,
                                                     itemReceiptId: "",
-                                                    items: [{ ...emptyItem }],
+                                                    items: [],
                                                 }));
+
+                                                setNewItem({ ...emptyItem });
+                                                setNewItemError("");
                                             }}
                                             className={inputClass}
                                         >
@@ -1435,27 +1568,237 @@ export default function PurchaseInvoicesPage() {
                             {/* ITEMS */}
 
                             <div>
-                                <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                                    <div>
-                                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                                            Invoice Items
-                                        </h3>
+                                <div className="mb-4">
+                                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                                        Invoice Items
+                                    </h3>
 
-                                        <p className="mt-1 text-xs text-gray-500">
-                                            Add products and enter purchase quantities and costs.
-                                        </p>
-                                    </div>
-
-                                    {form.sourceType === "MANUAL" && canSaveForm && (
-                                        <button
-                                            type="button"
-                                            onClick={addItem}
-                                            className={`${buttonClass} bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300`}
-                                        >
-                                            + Add Item
-                                        </button>
-                                    )}
+                                    <p className="mt-1 text-xs text-gray-500">
+                                        Add complete product lines to your purchase invoice.
+                                    </p>
                                 </div>
+
+                                {/* QUICK ITEM ENTRY */}
+
+                                {form.sourceType === "MANUAL" && canSaveForm && (
+                                    <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900 dark:bg-blue-950/20">
+
+                                        <div className="mb-4 flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+                                            <div>
+                                                <h4 className="text-sm font-bold text-gray-900 dark:text-white">
+                                                    + Quick Item Entry
+                                                </h4>
+
+                                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                    Select a product, enter its details and add it to the invoice.
+                                                </p>
+                                            </div>
+
+                                            <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                                                {form.items.length} items added
+                                            </span>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+
+                                            {/* PRODUCT */}
+
+                                            <div className="lg:col-span-2">
+                                                <label className={labelClass}>
+                                                    Item / Product *
+                                                </label>
+
+                                                <select
+                                                    value={newItem.productId}
+                                                    onChange={(event) =>
+                                                        selectNewProduct(event.target.value)
+                                                    }
+                                                    className={inputClass}
+                                                >
+                                                    <option value="">
+                                                        Select Product
+                                                    </option>
+
+                                                    {products.map((product) => (
+                                                        <option
+                                                            key={product.id}
+                                                            value={product.id}
+                                                        >
+                                                            {product.sku
+                                                                ? `${product.sku} - ${product.name}`
+                                                                : product.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            {/* DESCRIPTION */}
+
+                                            <div className="lg:col-span-2">
+                                                <label className={labelClass}>
+                                                    Description *
+                                                </label>
+
+                                                <input
+                                                    type="text"
+                                                    value={newItem.description}
+                                                    onChange={(event) =>
+                                                        updateNewItem(
+                                                            "description",
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    placeholder="Enter item description"
+                                                    className={inputClass}
+                                                />
+                                            </div>
+
+                                            {/* UOM */}
+
+                                            <div>
+                                                <label className={labelClass}>
+                                                    Unit of Measure *
+                                                </label>
+
+                                                <input
+                                                    type="text"
+                                                    value={newItem.uom}
+                                                    onChange={(event) =>
+                                                        updateNewItem(
+                                                            "uom",
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    placeholder="PCS"
+                                                    className={inputClass}
+                                                />
+                                            </div>
+
+                                            {/* QUANTITY */}
+
+                                            <div>
+                                                <label className={labelClass}>
+                                                    Quantity *
+                                                </label>
+
+                                                <input
+                                                    type="number"
+                                                    min="0.0001"
+                                                    step="any"
+                                                    value={newItem.quantity}
+                                                    onChange={(event) =>
+                                                        updateNewItem(
+                                                            "quantity",
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    className={inputClass}
+                                                />
+                                            </div>
+
+                                            {/* UNIT COST */}
+
+                                            <div>
+                                                <label className={labelClass}>
+                                                    Unit Cost *
+                                                </label>
+
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="any"
+                                                    value={newItem.unitCost}
+                                                    onChange={(event) =>
+                                                        updateNewItem(
+                                                            "unitCost",
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    className={inputClass}
+                                                />
+                                            </div>
+
+                                            {/* DISCOUNT */}
+
+                                            <div>
+                                                <label className={labelClass}>
+                                                    Discount
+                                                </label>
+
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="any"
+                                                    value={newItem.discount}
+                                                    onChange={(event) =>
+                                                        updateNewItem(
+                                                            "discount",
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    className={inputClass}
+                                                />
+                                            </div>
+
+                                            {/* TAX */}
+
+                                            <div>
+                                                <label className={labelClass}>
+                                                    Tax
+                                                </label>
+
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="any"
+                                                    value={newItem.tax}
+                                                    onChange={(event) =>
+                                                        updateNewItem(
+                                                            "tax",
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    className={inputClass}
+                                                />
+                                            </div>
+
+                                            {/* LINE TOTAL PREVIEW */}
+
+                                            <div>
+                                                <label className={labelClass}>
+                                                    Line Total
+                                                </label>
+
+                                                <div className="flex min-h-[42px] items-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-bold text-blue-700 dark:border-gray-700 dark:bg-gray-900 dark:text-blue-300">
+                                                    Rs.{" "}
+                                                    {money(
+                                                        Number(newItem.quantity || 0) *
+                                                        Number(newItem.unitCost || 0) -
+                                                        Number(newItem.discount || 0) +
+                                                        Number(newItem.tax || 0)
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {newItemError && (
+                                            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+                                                {newItemError}
+                                            </div>
+                                        )}
+
+                                        <div className="mt-4 flex justify-end">
+                                            <button
+                                                type="button"
+                                                onClick={addItem}
+                                                disabled={!canSaveForm}
+                                                className={`${buttonClass} bg-blue-600 text-white hover:bg-blue-700`}
+                                            >
+                                                + Add Item to Invoice
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {loadingReceipt && (
                                     <p className="mb-3 text-sm text-blue-600">
@@ -1476,6 +1819,7 @@ export default function PurchaseInvoicesPage() {
                                                 <th className="px-3 py-3">Discount</th>
                                                 <th className="px-3 py-3">Tax</th>
                                                 <th className="px-3 py-3">Line Total</th>
+
                                                 {form.sourceType === "MANUAL" && canSaveForm && (
                                                     <th className="px-3 py-3">Action</th>
                                                 )}
@@ -1655,10 +1999,16 @@ export default function PurchaseInvoicesPage() {
                                             {form.items.length === 0 && (
                                                 <tr>
                                                     <td
-                                                        colSpan={10}
+                                                        colSpan={
+                                                            form.sourceType === "MANUAL" && canSaveForm
+                                                                ? 10
+                                                                : 9
+                                                        }
                                                         className="px-4 py-10 text-center text-gray-500"
                                                     >
-                                                        No items added.
+                                                        {form.sourceType === "MANUAL"
+                                                            ? "No items added yet. Use Quick Item Entry above to add your first item."
+                                                            : "Select an approved Item Receipt to load its items."}
                                                     </td>
                                                 </tr>
                                             )}

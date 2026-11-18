@@ -100,8 +100,8 @@ async function readApiResponse(response) {
   if (!response.ok || data.success === false) {
     const error = new Error(
       data.message ||
-        data.error ||
-        `Request failed (${response.status}).`
+      data.error ||
+      `Request failed (${response.status}).`
     );
 
     error.status = response.status;
@@ -760,6 +760,9 @@ export default function AccountsPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [expandedAccounts, setExpandedAccounts] = useState(new Set());
+  const [expandedAccountTypes, setExpandedAccountTypes] = useState(
+    new Set()
+  );
 
   /*
    * IMPORTANT:
@@ -1100,7 +1103,7 @@ export default function AccountsPage() {
         : "",
       openingBalance:
         account.opening_balance !== null &&
-        account.opening_balance !== undefined
+          account.opening_balance !== undefined
           ? String(account.opening_balance)
           : "",
       isActive: account.is_active !== false,
@@ -1302,6 +1305,8 @@ export default function AccountsPage() {
   }
 
   function expandAll() {
+    setExpandedAccountTypes(new Set(ACCOUNT_TYPES));
+
     setExpandedAccounts(
       new Set(
         accounts
@@ -1312,6 +1317,7 @@ export default function AccountsPage() {
   }
 
   function collapseAll() {
+    setExpandedAccountTypes(new Set());
     setExpandedAccounts(new Set());
   }
 
@@ -1350,6 +1356,24 @@ export default function AccountsPage() {
   }
 
   const filteredAccountTree = filterTree(accountTree);
+
+  const accountTypeGroups = useMemo(() => {
+    return ACCOUNT_TYPES.map((type) => {
+      const children = filteredAccountTree.filter(
+        (account) =>
+          String(account.account_type || "").toUpperCase() === type
+      );
+
+      return {
+        type,
+        children,
+        count: accounts.filter(
+          (account) =>
+            String(account.account_type || "").toUpperCase() === type
+        ).length,
+      };
+    });
+  }, [filteredAccountTree, accounts]);
 
   const editParentOptions = useMemo(() => {
     if (!editingAccount) return [];
@@ -1867,21 +1891,92 @@ export default function AccountsPage() {
                   </div>
                 ) : (
                   <div>
-                    {filteredAccountTree.map((account) => (
-                      <AccountRow
-                        key={account.account_id}
-                        account={account}
-                        level={0}
-                        searchActive={Boolean(normalizedSearch)}
-                        expandedAccounts={expandedAccounts}
-                        onToggle={toggleAccount}
-                        onAddChild={addChildAccount}
-                        onEdit={editAccount}
-                        onView={viewAccount}
-                        canCreate={permissions.canCreate}
-                        canUpdate={permissions.canUpdate}
-                      />
-                    ))}
+                    {accountTypeGroups
+                      .filter((group) => !normalizedSearch || group.children.length > 0)
+                      .map((group) => {
+                        const isExpanded =
+                          normalizedSearch ||
+                          expandedAccountTypes.has(group.type);
+
+                        return (
+                          <div key={group.type}>
+                            {/* Account Type Header */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExpandedAccountTypes((previous) => {
+                                  const next = new Set(previous);
+
+                                  if (next.has(group.type)) {
+                                    next.delete(group.type);
+                                  } else {
+                                    next.add(group.type);
+                                  }
+
+                                  return next;
+                                });
+                              }}
+                              className="flex w-full items-center gap-4 border-b border-slate-200 bg-slate-100/80 px-5 py-5 text-left transition hover:bg-blue-50 dark:border-slate-800 dark:bg-slate-800/50 dark:hover:bg-blue-950/30"
+                            >
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm dark:bg-slate-900">
+                                {isExpanded ? (
+                                  <ChevronDown size={18} className="text-blue-600" />
+                                ) : (
+                                  <ChevronRight size={18} className="text-slate-500" />
+                                )}
+                              </div>
+
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
+                                <FolderOpen size={21} />
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+                                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900 dark:text-white">
+                                  {group.type}
+                                </h3>
+
+                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                  {group.count} account(s)
+                                </p>
+                              </div>
+
+                              <span
+                                className={`inline-flex rounded-full border px-3 py-1.5 text-xs font-bold ${getTypeStyle(group.type)}`}
+                              >
+                                {group.type}
+                              </span>
+                            </button>
+
+                            {/* Accounts underneath the selected account type */}
+                            {isExpanded && group.children.length > 0 && (
+                              <div>
+                                {group.children.map((account) => (
+                                  <AccountRow
+                                    key={account.account_id}
+                                    account={account}
+                                    level={1}
+                                    searchActive={Boolean(normalizedSearch)}
+                                    expandedAccounts={expandedAccounts}
+                                    onToggle={toggleAccount}
+                                    onAddChild={addChildAccount}
+                                    onEdit={editAccount}
+                                    onView={viewAccount}
+                                    canCreate={permissions.canCreate}
+                                    canUpdate={permissions.canUpdate}
+                                  />
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Empty account type */}
+                            {isExpanded && group.children.length === 0 && (
+                              <div className="border-b border-slate-200 px-8 py-5 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                                No accounts under {group.type}.
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                   </div>
                 )}
               </div>
@@ -1890,8 +1985,9 @@ export default function AccountsPage() {
             {!loading && accounts.length > 0 && (
               <div className="flex flex-col gap-2 border-t border-slate-200 bg-slate-50/70 px-5 py-3.5 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800 dark:bg-slate-950/50 dark:text-slate-400">
                 <span>
-                  Showing {formatCount(filteredAccountTree.length)} top-level
-                  account group(s).
+                  Showing {accountTypeGroups.filter(
+                    (group) => !normalizedSearch || group.children.length > 0
+                  ).length} account type(s).
                 </span>
 
                 <span className="inline-flex items-center gap-1.5">

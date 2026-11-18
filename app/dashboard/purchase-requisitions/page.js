@@ -37,6 +37,8 @@ const emptyItem = () => ({
     memo: "",
 });
 
+
+
 const emptyForm = () => ({
     transactionDate: today(),
     status: "DRAFT",
@@ -207,8 +209,13 @@ export default function PurchaseRequisitionsPage() {
     const [selected, setSelected] = useState(null);
 
     const [form, setForm] = useState(emptyForm());
-    const [items, setItems] = useState([emptyItem()]);
-    const [search, setSearch] = useState("");
+const [items, setItems] = useState([emptyItem()]);
+
+// Quick-add item entry
+const [newItem, setNewItem] = useState(emptyItem());
+const [itemError, setItemError] = useState("");
+
+const [search, setSearch] = useState("");
     const [activeTab, setActiveTab] = useState("lines");
 
     const [message, setMessage] = useState("");
@@ -453,12 +460,62 @@ export default function PurchaseRequisitionsPage() {
         );
     };
 
-    const addItem = () => {
-        setItems((previous) => [
-            ...previous,
-            emptyItem(),
-        ]);
-    };
+    const updateNewItem = (key, value) => {
+    setNewItem((previous) => ({
+        ...previous,
+        [key]: value,
+    }));
+
+    setItemError("");
+};
+
+const handleNewProductChange = (productId) => {
+    const product = products.find(
+        (p) => String(p.product_id) === String(productId)
+    );
+
+    setNewItem((previous) => ({
+        ...previous,
+        productId,
+        description: product?.product_name || "",
+        uom: product?.unit || previous.uom || "PCS",
+    }));
+
+    setItemError("");
+};
+
+const addItem = () => {
+    if (!newItem.productId) {
+        setItemError("Please select an item.");
+        return;
+    }
+
+    const quantity = Number(newItem.quantity);
+
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+        setItemError("Please enter a valid quantity greater than zero.");
+        return;
+    }
+
+    const itemBalance = Number(newItem.itemBalance);
+
+    if (!Number.isFinite(itemBalance) || itemBalance < 0) {
+        setItemError("Item balance cannot be negative.");
+        return;
+    }
+
+    setItems((previous) => [
+        ...previous,
+        {
+            ...newItem,
+            quantity: String(quantity),
+            itemBalance: String(itemBalance),
+        },
+    ]);
+
+    setNewItem(emptyItem());
+    setItemError("");
+};
 
     const removeItem = (index) => {
         setItems((previous) =>
@@ -506,6 +563,8 @@ export default function PurchaseRequisitionsPage() {
         setShowForm(false);
         setSelected(null);
         setActiveTab("lines");
+        setNewItem(emptyItem());
+setItemError("");
     };
 
     const startCreate = () => {
@@ -519,6 +578,8 @@ export default function PurchaseRequisitionsPage() {
         setActiveTab("lines");
         setError("");
         setMessage("");
+        setNewItem(emptyItem());
+setItemError("");
     };
 
     /* -------------------------------------------------------------------------- */
@@ -579,6 +640,8 @@ export default function PurchaseRequisitionsPage() {
                 setEditingId(record.requisition_id);
                 setShowForm(true);
                 setSelected(record);
+                setNewItem(emptyItem());
+setItemError("");
             } else {
                 setSelected(record);
                 setShowForm(false);
@@ -1648,7 +1711,7 @@ export default function PurchaseRequisitionsPage() {
                                             description="Add the items and quantities requested."
                                         />
 
-                                        {activeTab === "lines" && (
+                                        {/* {activeTab === "lines" && (
                                             <button
                                                 type="button"
                                                 onClick={addItem}
@@ -1657,7 +1720,7 @@ export default function PurchaseRequisitionsPage() {
                                                 <Icon name="plus" />
                                                 Add Item
                                             </button>
-                                        )}
+                                        )} */}
                                     </div>
 
                                     <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-800">
@@ -1678,218 +1741,456 @@ export default function PurchaseRequisitionsPage() {
                                 </div>
 
                                 {/* Transaction Lines */}
-                                {activeTab === "lines" && (
-                                    <>
-                                        <div className="grid gap-3 border-b border-slate-100 bg-slate-50/70 p-5 dark:border-slate-800 dark:bg-slate-950/40 sm:grid-cols-3">
+                                
+{/* Transaction Lines */}
+{activeTab === "lines" && (
+    <div className="space-y-6 p-5 sm:p-7">
 
-                                            <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/30">
-                                                <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">
-                                                    Item Lines
-                                                </p>
+        {/* Quick Add Item */}
+        <section className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5 dark:border-blue-900 dark:bg-blue-950/20">
 
-                                                <p className="mt-1 text-2xl font-extrabold text-blue-800 dark:text-blue-200">
-                                                    {items.length}
-                                                </p>
-                                            </div>
+            <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                        Add Requisition Item
+                    </h3>
 
-                                            <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950/30">
-                                                <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                                                    Total Requested Quantity
-                                                </p>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                        Select a product, enter its details, and add it to the transaction.
+                    </p>
+                </div>
 
-                                                <p className="mt-1 text-2xl font-extrabold text-emerald-800 dark:text-emerald-200">
-                                                    {formatNumber(totalQuantity)}
-                                                </p>
-                                            </div>
+                <span className="w-fit rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                    Quick Item Entry
+                </span>
+            </div>
 
-                                            <div className="rounded-xl border border-amber-100 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/30">
-                                                <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
-                                                    Document Status
-                                                </p>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 
-                                                <p className="mt-1 text-sm font-bold text-amber-800 dark:text-amber-200">
-                                                    Pending Purchase Order / RFQ
-                                                </p>
-                                            </div>
-                                        </div>
+                {/* Product */}
+                <div className="md:col-span-2">
+                    <label className={labelClass}>
+                        Item / Product *
+                    </label>
 
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full min-w-[1150px] text-left">
-                                                <thead>
-                                                    <tr>
-                                                        {[
-                                                            "Item Name",
-                                                            "Item Description",
-                                                            "Item Balance",
-                                                            "UOM",
-                                                            "Quantity",
-                                                            "Memo",
-                                                            "Action",
-                                                        ].map((heading) => (
-                                                            <th
-                                                                key={heading}
-                                                                className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400"
-                                                            >
-                                                                {heading}
-                                                            </th>
-                                                        ))}
-                                                    </tr>
-                                                </thead>
+                    <select
+                        value={newItem.productId}
+                        onChange={(e) =>
+                            handleNewProductChange(e.target.value)
+                        }
+                        className={inputClass}
+                    >
+                        <option value="">Select product</option>
 
-                                                <tbody>
-                                                    {items.map((item, index) => (
-                                                        <tr
-                                                            key={index}
-                                                            className="border-b border-slate-100 dark:border-slate-800"
-                                                        >
-                                                            <td className="min-w-[220px] p-3">
-                                                                <select
-                                                                    required
-                                                                    value={item.productId}
-                                                                    onChange={(e) =>
-                                                                        updateItem(
-                                                                            index,
-                                                                            "productId",
-                                                                            e.target.value
-                                                                        )
-                                                                    }
-                                                                    className={smallInputClass}
-                                                                >
-                                                                    <option value="">
-                                                                        Select item
-                                                                    </option>
+                        {products
+                            .filter((product) => product.is_active)
+                            .map((product) => (
+                                <option
+                                    key={product.product_id}
+                                    value={product.product_id}
+                                >
+                                    {product.sku} - {product.product_name}
+                                </option>
+                            ))}
+                    </select>
+                </div>
 
-                                                                    {products
-                                                                        .filter((p) => p.is_active)
-                                                                        .map((p) => (
-                                                                            <option
-                                                                                key={p.product_id}
-                                                                                value={p.product_id}
-                                                                            >
-                                                                                {p.sku} - {p.product_name}
-                                                                            </option>
-                                                                        ))}
-                                                                </select>
-                                                            </td>
+                {/* Quantity */}
+                <div>
+                    <label className={labelClass}>
+                        Requested Quantity *
+                    </label>
 
-                                                            <td className="min-w-[210px] p-3">
-                                                                <input
-                                                                    value={item.description}
-                                                                    onChange={(e) =>
-                                                                        updateItem(
-                                                                            index,
-                                                                            "description",
-                                                                            e.target.value
-                                                                        )
-                                                                    }
-                                                                    className={smallInputClass}
-                                                                    placeholder="Description"
-                                                                />
-                                                            </td>
+                    <input
+                        type="number"
+                        min="0.001"
+                        step="any"
+                        value={newItem.quantity}
+                        onChange={(e) =>
+                            updateNewItem("quantity", e.target.value)
+                        }
+                        className={inputClass}
+                        placeholder="Enter quantity"
+                    />
+                </div>
 
-                                                            <td className="p-3">
-                                                                <input
-                                                                    type="number"
-                                                                    min="0"
-                                                                    step="1"
-                                                                    value={item.itemBalance}
-                                                                    onChange={(e) =>
-                                                                        updateItem(
-                                                                            index,
-                                                                            "itemBalance",
-                                                                            e.target.value
-                                                                        )
-                                                                    }
-                                                                    className={smallInputClass}
-                                                                />
-                                                            </td>
+                {/* UOM */}
+                <div>
+                    <label className={labelClass}>
+                        Unit of Measure
+                    </label>
 
-                                                            <td className="min-w-[130px] p-3">
-                                                                <select
-                                                                    value={item.uom}
-                                                                    onChange={(e) =>
-                                                                        updateItem(
-                                                                            index,
-                                                                            "uom",
-                                                                            e.target.value
-                                                                        )
-                                                                    }
-                                                                    className={smallInputClass}
-                                                                >
-                                                                    {units.length
-                                                                        ? units
-                                                                            .filter((u) => u.is_active)
-                                                                            .map((u) => (
-                                                                                <option
-                                                                                    key={u.unit_id}
-                                                                                    value={u.unit_code}
-                                                                                >
-                                                                                    {u.unit_code} - {u.unit_name}
-                                                                                </option>
-                                                                            ))
-                                                                        : (
-                                                                            <option value={item.uom}>
-                                                                                {item.uom}
-                                                                            </option>
-                                                                        )}
-                                                                </select>
-                                                            </td>
+                    <select
+                        value={newItem.uom}
+                        onChange={(e) =>
+                            updateNewItem("uom", e.target.value)
+                        }
+                        className={inputClass}
+                    >
+                        {!units.some(
+                            (unit) =>
+                                unit.is_active &&
+                                unit.unit_code === newItem.uom
+                        ) && (
+                            <option value={newItem.uom}>
+                                {newItem.uom}
+                            </option>
+                        )}
 
-                                                            <td className="p-3">
-                                                                <input
-                                                                    required
-                                                                    type="number"
-                                                                    min="1"
-                                                                    step="1"
-                                                                    value={item.quantity}
-                                                                    onChange={(e) =>
-                                                                        updateItem(
-                                                                            index,
-                                                                            "quantity",
-                                                                            e.target.value
-                                                                        )
-                                                                    }
-                                                                    className={smallInputClass}
-                                                                />
-                                                            </td>
+                        {units
+                            .filter((unit) => unit.is_active)
+                            .map((unit) => (
+                                <option
+                                    key={unit.unit_id}
+                                    value={unit.unit_code}
+                                >
+                                    {unit.unit_code} - {unit.unit_name}
+                                </option>
+                            ))}
+                    </select>
+                </div>
 
-                                                            <td className="min-w-[180px] p-3">
-                                                                <input
-                                                                    value={item.memo}
-                                                                    onChange={(e) =>
-                                                                        updateItem(
-                                                                            index,
-                                                                            "memo",
-                                                                            e.target.value
-                                                                        )
-                                                                    }
-                                                                    className={smallInputClass}
-                                                                    placeholder="Line memo"
-                                                                />
-                                                            </td>
+                {/* Description */}
+                <div className="md:col-span-2">
+                    <label className={labelClass}>
+                        Item Description
+                    </label>
 
-                                                            <td className="p-3 text-center">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => removeItem(index)}
-                                                                    disabled={items.length === 1}
-                                                                    className="rounded-lg border border-red-200 bg-red-50 p-2 text-red-600 disabled:opacity-30 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
-                                                                    aria-label="Remove line"
-                                                                >
-                                                                    <Icon name="trash" size={16} />
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
+                    <input
+                        type="text"
+                        value={newItem.description}
+                        onChange={(e) =>
+                            updateNewItem("description", e.target.value)
+                        }
+                        className={inputClass}
+                        placeholder="Enter item description"
+                    />
+                </div>
 
-                                        <p className="p-4 text-xs text-slate-500 dark:text-slate-400">
-                                            Requested quantities are informational. Saving this requisition does not change warehouse stock or accounting balances.
-                                        </p>
-                                    </>
-                                )}
+                {/* Item Balance */}
+                <div>
+                    <label className={labelClass}>
+                        Current Item Balance
+                    </label>
+
+                    <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={newItem.itemBalance}
+                        onChange={(e) =>
+                            updateNewItem("itemBalance", e.target.value)
+                        }
+                        className={inputClass}
+                        placeholder="0"
+                    />
+                </div>
+
+                {/* Memo */}
+                <div>
+                    <label className={labelClass}>
+                        Line Memo
+                    </label>
+
+                    <input
+                        type="text"
+                        value={newItem.memo}
+                        onChange={(e) =>
+                            updateNewItem("memo", e.target.value)
+                        }
+                        className={inputClass}
+                        placeholder="Optional memo"
+                    />
+                </div>
+            </div>
+
+            {itemError && (
+                <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+                    {itemError}
+                </div>
+            )}
+
+            <div className="mt-5 flex flex-col gap-3 border-t border-blue-100 pt-5 dark:border-blue-900 sm:flex-row sm:items-center sm:justify-between">
+
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Add the current item to the transaction table below.
+                </p>
+
+                <button
+                    type="button"
+                    onClick={addItem}
+                    className={primaryButton}
+                >
+                    <Icon name="plus" />
+                    Add Item
+                </button>
+            </div>
+        </section>
+
+        {/* Item Summary */}
+        <div className="grid gap-3 sm:grid-cols-3">
+
+            <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/30">
+                <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                    Item Lines
+                </p>
+
+                <p className="mt-1 text-2xl font-extrabold text-blue-800 dark:text-blue-200">
+                    {items.length}
+                </p>
+            </div>
+
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950/30">
+                <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                    Total Requested Quantity
+                </p>
+
+                <p className="mt-1 text-2xl font-extrabold text-emerald-800 dark:text-emerald-200">
+                    {formatNumber(totalQuantity)}
+                </p>
+            </div>
+
+            <div className="rounded-xl border border-amber-100 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/30">
+                <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                    Document Status
+                </p>
+
+                <p className="mt-1 text-sm font-bold text-amber-800 dark:text-amber-200">
+                    Pending Purchase Order / RFQ
+                </p>
+            </div>
+        </div>
+
+        {/* Added Items Table */}
+        <section className={`${cardClass} overflow-hidden`}>
+
+            <div className="flex flex-col gap-2 border-b border-slate-200 p-5 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h3 className="font-extrabold text-slate-900 dark:text-white">
+                        Added Transaction Items
+                    </h3>
+
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        Review or edit the items added to this requisition.
+                    </p>
+                </div>
+
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                    {items.length} Items
+                </span>
+            </div>
+
+            <div className="overflow-x-auto">
+                <table className="w-full min-w-[1150px] text-left">
+
+                    <thead>
+                        <tr>
+                            {[
+                                "Item Name",
+                                "Item Description",
+                                "Item Balance",
+                                "UOM",
+                                "Quantity",
+                                "Memo",
+                                "Action",
+                            ].map((heading) => (
+                                <th
+                                    key={heading}
+                                    className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400"
+                                >
+                                    {heading}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {items.map((item, index) => (
+                            <tr
+                                key={index}
+                                className="border-b border-slate-100 transition hover:bg-slate-50/70 dark:border-slate-800 dark:hover:bg-slate-800/30"
+                            >
+                                {/* Product */}
+                                <td className="min-w-[220px] p-3">
+                                    <select
+                                        required
+                                        value={item.productId}
+                                        onChange={(e) =>
+                                            updateItem(
+                                                index,
+                                                "productId",
+                                                e.target.value
+                                            )
+                                        }
+                                        className={smallInputClass}
+                                    >
+                                        <option value="">
+                                            Select item
+                                        </option>
+
+                                        {products
+                                            .filter((product) => product.is_active)
+                                            .map((product) => (
+                                                <option
+                                                    key={product.product_id}
+                                                    value={product.product_id}
+                                                >
+                                                    {product.sku} - {product.product_name}
+                                                </option>
+                                            ))}
+                                    </select>
+                                </td>
+
+                                {/* Description */}
+                                <td className="min-w-[210px] p-3">
+                                    <input
+                                        value={item.description}
+                                        onChange={(e) =>
+                                            updateItem(
+                                                index,
+                                                "description",
+                                                e.target.value
+                                            )
+                                        }
+                                        className={smallInputClass}
+                                        placeholder="Description"
+                                    />
+                                </td>
+
+                                {/* Balance */}
+                                <td className="p-3">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="any"
+                                        value={item.itemBalance}
+                                        onChange={(e) =>
+                                            updateItem(
+                                                index,
+                                                "itemBalance",
+                                                e.target.value
+                                            )
+                                        }
+                                        className={smallInputClass}
+                                    />
+                                </td>
+
+                                {/* UOM */}
+                                <td className="min-w-[140px] p-3">
+                                    <select
+                                        value={item.uom}
+                                        onChange={(e) =>
+                                            updateItem(
+                                                index,
+                                                "uom",
+                                                e.target.value
+                                            )
+                                        }
+                                        className={smallInputClass}
+                                    >
+                                        {!units.some(
+                                            (unit) =>
+                                                unit.is_active &&
+                                                unit.unit_code === item.uom
+                                        ) && (
+                                            <option value={item.uom}>
+                                                {item.uom}
+                                            </option>
+                                        )}
+
+                                        {units
+                                            .filter((unit) => unit.is_active)
+                                            .map((unit) => (
+                                                <option
+                                                    key={unit.unit_id}
+                                                    value={unit.unit_code}
+                                                >
+                                                    {unit.unit_code} - {unit.unit_name}
+                                                </option>
+                                            ))}
+                                    </select>
+                                </td>
+
+                                {/* Quantity */}
+                                <td className="p-3">
+                                    <input
+                                        required
+                                        type="number"
+                                        min="0.001"
+                                        step="any"
+                                        value={item.quantity}
+                                        onChange={(e) =>
+                                            updateItem(
+                                                index,
+                                                "quantity",
+                                                e.target.value
+                                            )
+                                        }
+                                        className={smallInputClass}
+                                    />
+                                </td>
+
+                                {/* Memo */}
+                                <td className="min-w-[180px] p-3">
+                                    <input
+                                        value={item.memo}
+                                        onChange={(e) =>
+                                            updateItem(
+                                                index,
+                                                "memo",
+                                                e.target.value
+                                            )
+                                        }
+                                        className={smallInputClass}
+                                        placeholder="Line memo"
+                                    />
+                                </td>
+
+                                {/* Remove */}
+                                <td className="p-3 text-center">
+                                    <button
+                                        type="button"
+                                        onClick={() => removeItem(index)}
+                                        disabled={items.length === 1}
+                                        className="rounded-lg border border-red-200 bg-red-50 p-2 text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-30 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
+                                        aria-label="Remove item"
+                                        title="Remove item"
+                                    >
+                                        <Icon name="trash" size={16} />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+
+                {items.length === 0 && (
+                    <div className="p-10 text-center">
+                        <Icon
+                            name="package"
+                            size={36}
+                        />
+
+                        <h3 className="mt-3 font-bold text-slate-800 dark:text-white">
+                            No items added
+                        </h3>
+
+                        <p className="mt-1 text-sm text-slate-500">
+                            Select a product above and click Add Item.
+                        </p>
+                    </div>
+                )}
+            </div>
+
+            <div className="border-t border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Requested quantities are informational. Saving this requisition does not change warehouse stock or accounting balances.
+                </p>
+            </div>
+        </section>
+    </div>
+)}
+
 
                                 {/* Related Transactions */}
                                 {activeTab === "related" && (

@@ -28,6 +28,15 @@ const defaultPermissions = {
   can_delete: false,
 };
 
+function getToday() {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
 function Icon({ name, className = "h-5 w-5" }) {
   const common = {
     className,
@@ -44,9 +53,7 @@ function Icon({ name, className = "h-5 w-5" }) {
     wallet: (
       <>
         <rect x="3" y="5" width="18" height="15" rx="2" />
-        <path d="M3 9h18" />
-        <path d="M16 14h.01" />
-        <path d="M7 5V3h10v2" />
+        <path d="M3 9h18M16 14h.01M7 5V3h10v2" />
       </>
     ),
     plus: <path d="M12 5v14M5 12h14" />,
@@ -63,12 +70,6 @@ function Icon({ name, className = "h-5 w-5" }) {
       </>
     ),
     check: <path d="m5 12 4 4L19 6" />,
-    clock: (
-      <>
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 7v5l3 2" />
-      </>
-    ),
     search: (
       <>
         <circle cx="10.5" cy="10.5" r="6.5" />
@@ -97,15 +98,13 @@ function Icon({ name, className = "h-5 w-5" }) {
     printer: (
       <>
         <path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-        <path d="M6 14h12v7H6z" />
-        <path d="M18 12h.01" />
+        <path d="M6 14h12v7H6zM18 12h.01" />
       </>
     ),
     arrow: <path d="M5 12h14m-6-6 6 6-6 6" />,
     bank: (
       <>
-        <path d="m3 9 9-6 9 6" />
-        <path d="M4 10h16M5 10v9m5-9v9m4-9v9m5-9v9M3 21h18" />
+        <path d="m3 9 9-6 9 6M4 10h16M5 10v9m5-9v9m4-9v9m5-9v9M3 21h18" />
       </>
     ),
     user: (
@@ -118,12 +117,6 @@ function Icon({ name, className = "h-5 w-5" }) {
       <>
         <path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z" />
         <path d="m9 12 2 2 4-4" />
-      </>
-    ),
-    refresh: (
-      <>
-        <path d="M20 7v5h-5M4 17v-5h5" />
-        <path d="M5.5 9a7 7 0 0 1 12-2L20 12M4 12l2.5 5a7 7 0 0 0 12-2" />
       </>
     ),
     info: (
@@ -164,8 +157,9 @@ function PaymentMethodBadge({ method }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ring-1 ring-inset ${styles[normalized] || styles.OTHER
-        }`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ring-1 ring-inset ${
+        styles[normalized] || styles.OTHER
+      }`}
     >
       <span className="h-1.5 w-1.5 rounded-full bg-current" />
       {normalized}
@@ -240,7 +234,7 @@ function AccessDenied({ onBack }) {
         </p>
 
         <div className="mt-5 inline-flex rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-bold text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-300">
-          Required permission: sales_payments → View
+          Required permission: sales_payment → View
         </div>
 
         <button
@@ -272,14 +266,14 @@ function PermissionLoading() {
 export default function SalesPaymentsPage() {
   const [payments, setPayments] = useState([]);
   const [invoices, setInvoices] = useState([]);
+  const [accounts, setAccounts] = useState([]);
 
   const [invoiceId, setInvoiceId] = useState("");
   const [paymentNumber, setPaymentNumber] = useState("");
-  const [paymentDate, setPaymentDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
+  const [paymentDate, setPaymentDate] = useState(getToday());
   const [amount, setAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
+  const [accountId, setAccountId] = useState("");
   const [referenceNumber, setReferenceNumber] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -287,7 +281,6 @@ export default function SalesPaymentsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // User rights
   const [permissionLoading, setPermissionLoading] = useState(true);
   const [permissionError, setPermissionError] = useState("");
   const [permissions, setPermissions] = useState(defaultPermissions);
@@ -334,25 +327,104 @@ export default function SalesPaymentsPage() {
 
   const allColumnsVisible = visibleColumnCount === paymentColumns.length;
 
-  const toggleColumn = (key) => {
-  setVisibleColumns((previous) => {
-    const selectedCount = paymentColumns.filter(
-      (column) => previous[column.key]
-    ).length;
+  const canView = permissions.can_view;
+  const canCreate = permissions.can_create;
+  const canEdit = permissions.can_update;
 
-    // Prevent removing the last selected column
-    if (previous[key] && selectedCount <= 1) {
-      return previous;
-    }
+  const selectedInvoice = invoices.find(
+    (invoice) => String(invoice.invoice_id) === String(invoiceId)
+  );
 
-    return {
-      ...previous,
-      [key]: !previous[key],
-    };
-  });
-};
+  const selectedAccount = accounts.find(
+    (account) => String(account.account_id) === String(accountId)
+  );
 
-  const toggleAllColumns = () => {
+  const totalCollected = useMemo(
+    () =>
+      payments.reduce(
+        (total, payment) => total + Number(payment.amount || 0),
+        0
+      ),
+    [payments]
+  );
+
+  const paymentMethodsUsed = useMemo(
+    () => new Set(payments.map((payment) => payment.payment_method)).size,
+    [payments]
+  );
+
+  const filteredPayments = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+
+    return payments.filter((payment) => {
+      const matchesMethod =
+        methodFilter === "ALL" ||
+        String(payment.payment_method || "OTHER").toUpperCase() ===
+          methodFilter;
+
+      const searchableText = [
+        payment.payment_number,
+        payment.invoice_number,
+        payment.customer_name,
+        payment.reference_number,
+        payment.payment_method,
+        payment.account_code,
+        payment.account_name,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return matchesMethod && (!query || searchableText.includes(query));
+    });
+  }, [payments, searchTerm, methodFilter]);
+
+  function formatDate(value) {
+    if (!value) return "-";
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) return value;
+
+    return date.toLocaleDateString("en-GB");
+  }
+
+  function formatMoney(value) {
+    return Number(value || 0).toLocaleString("en-PK", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+
+  function getAccountLabel(account) {
+    if (!account) return "-";
+
+    return [
+      account.account_code,
+      account.account_name,
+    ]
+      .filter(Boolean)
+      .join(" - ");
+  }
+
+  function toggleColumn(key) {
+    setVisibleColumns((previous) => {
+      const selectedCount = paymentColumns.filter(
+        (column) => previous[column.key]
+      ).length;
+
+      if (previous[key] && selectedCount <= 1) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        [key]: !previous[key],
+      };
+    });
+  }
+
+  function toggleAllColumns() {
     const showAll = !allColumnsVisible;
 
     setVisibleColumns(
@@ -360,19 +432,8 @@ export default function SalesPaymentsPage() {
         paymentColumns.map((column) => [column.key, showAll])
       )
     );
-  };
+  }
 
-  const resetColumns = () => {
-    setVisibleColumns({ ...DEFAULT_VISIBLE_COLUMNS });
-  };
-
-  const canView = permissions.can_view;
-  const canCreate = permissions.can_create;
-  const canEdit = permissions.can_update;
-  const canDelete = permissions.can_delete;
-
-  // Load current user's permissions.
-  // Load current user's permissions.
   // Load current user's permissions.
   useEffect(() => {
     let cancelled = false;
@@ -386,9 +447,7 @@ export default function SalesPaymentsPage() {
           `/api/permissions/current?permissionKey=${encodeURIComponent(
             PERMISSION_KEY
           )}`,
-          {
-            cache: "no-store",
-          }
+          { cache: "no-store" }
         );
 
         const data = await response.json();
@@ -456,7 +515,7 @@ export default function SalesPaymentsPage() {
     };
   }, [permissionRetry]);
 
-  // Load payment data only after View permission is confirmed.
+  // Load payments, invoices, and eligible Cash/Bank accounts.
   useEffect(() => {
     if (permissionLoading || !canView) return;
 
@@ -488,6 +547,7 @@ export default function SalesPaymentsPage() {
 
         if (!cancelled) {
           setPayments(paymentData.payments || []);
+          setAccounts(paymentData.accounts || []);
           setInvoices(invoiceData.invoices || []);
           setError("");
         }
@@ -510,72 +570,14 @@ export default function SalesPaymentsPage() {
     };
   }, [permissionLoading, canView]);
 
-  const selectedInvoice = invoices.find(
-    (invoice) => String(invoice.invoice_id) === String(invoiceId)
-  );
-
-  const totalCollected = useMemo(
-    () =>
-      payments.reduce(
-        (total, payment) => total + Number(payment.amount || 0),
-        0
-      ),
-    [payments]
-  );
-
-  const paymentMethodsUsed = useMemo(
-    () => new Set(payments.map((payment) => payment.payment_method)).size,
-    [payments]
-  );
-
-  const filteredPayments = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
-
-    return payments.filter((payment) => {
-      const matchesMethod =
-        methodFilter === "ALL" ||
-        String(payment.payment_method || "OTHER").toUpperCase() ===
-        methodFilter;
-
-      const searchableText = [
-        payment.payment_number,
-        payment.invoice_number,
-        payment.customer_name,
-        payment.reference_number,
-        payment.payment_method,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return matchesMethod && (!query || searchableText.includes(query));
-    });
-  }, [payments, searchTerm, methodFilter]);
-
-  function formatDate(value) {
-    if (!value) return "-";
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) return value;
-
-    return date.toLocaleDateString("en-GB");
-  }
-
-  function formatMoney(value) {
-    return Number(value || 0).toLocaleString("en-PK", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-  }
-
   function resetForm() {
     setEditingPaymentId(null);
     setInvoiceId("");
     setPaymentNumber("");
-    setPaymentDate(new Date().toISOString().split("T")[0]);
+    setPaymentDate(getToday());
     setAmount("");
     setPaymentMethod("CASH");
+    setAccountId("");
     setReferenceNumber("");
     setNotes("");
     setShowPaymentForm(false);
@@ -592,9 +594,10 @@ export default function SalesPaymentsPage() {
     setEditingPaymentId(null);
     setInvoiceId("");
     setPaymentNumber("");
-    setPaymentDate(new Date().toISOString().split("T")[0]);
+    setPaymentDate(getToday());
     setAmount("");
     setPaymentMethod("CASH");
+    setAccountId("");
     setReferenceNumber("");
     setNotes("");
     setShowPaymentForm(true);
@@ -618,6 +621,7 @@ export default function SalesPaymentsPage() {
     }
 
     setPayments(paymentData.payments || []);
+    setAccounts(paymentData.accounts || []);
     setInvoices(invoiceData.invoices || []);
   }
 
@@ -640,7 +644,22 @@ export default function SalesPaymentsPage() {
       return;
     }
 
-    if (!amount || Number(amount) <= 0) {
+    if (!accountId) {
+      setError("Please select the Cash/Bank account receiving this payment.");
+      return;
+    }
+
+    if (!accounts.some((account) => String(account.account_id) === String(accountId))) {
+      setError("The selected Cash/Bank account is not available. Refresh the page and try again.");
+      return;
+    }
+
+    if (!paymentDate) {
+      setError("Please select the payment date.");
+      return;
+    }
+
+    if (!amount || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
       setError("Payment amount must be greater than zero.");
       return;
     }
@@ -669,6 +688,7 @@ export default function SalesPaymentsPage() {
           paymentDate,
           amount: Number(amount),
           paymentMethod,
+          accountId: Number(accountId),
           referenceNumber,
           notes,
         }),
@@ -679,9 +699,9 @@ export default function SalesPaymentsPage() {
       if (!response.ok) {
         throw new Error(
           data.message ||
-          (editingPaymentId
-            ? "Failed to update payment."
-            : "Failed to save payment.")
+            (editingPaymentId
+              ? "Failed to update payment."
+              : "Failed to save payment.")
         );
       }
 
@@ -717,7 +737,9 @@ export default function SalesPaymentsPage() {
         throw new Error(data.message || "Failed to load payment.");
       }
 
-      if (!data.payment) throw new Error("Payment not found.");
+      if (!data.payment) {
+        throw new Error("Payment not found.");
+      }
 
       setSelectedPayment(data.payment);
     } catch (err) {
@@ -749,7 +771,9 @@ export default function SalesPaymentsPage() {
         throw new Error(data.message || "Failed to load payment.");
       }
 
-      if (!data.payment) throw new Error("Payment not found.");
+      if (!data.payment) {
+        throw new Error("Payment not found.");
+      }
 
       const payment = data.payment;
 
@@ -761,7 +785,7 @@ export default function SalesPaymentsPage() {
       setPaymentDate(
         payment.payment_date
           ? String(payment.payment_date).slice(0, 10)
-          : new Date().toISOString().split("T")[0]
+          : getToday()
       );
       setAmount(
         payment.amount !== null && payment.amount !== undefined
@@ -769,6 +793,14 @@ export default function SalesPaymentsPage() {
           : ""
       );
       setPaymentMethod(payment.payment_method || "CASH");
+
+      // Restore the account previously selected for this payment.
+      setAccountId(
+        payment.account_id !== null && payment.account_id !== undefined
+          ? String(payment.account_id)
+          : ""
+      );
+
       setReferenceNumber(payment.reference_number || "");
       setNotes(payment.notes || "");
 
@@ -809,13 +841,26 @@ export default function SalesPaymentsPage() {
     doc.text("Customer Payment Receipt", 14, 28);
 
     doc.setFontSize(9);
-    doc.text(`Payment #: ${payment.payment_number || "-"}`, pageWidth - 80, 16);
-    doc.text(`Date: ${formatDate(payment.payment_date)}`, pageWidth - 80, 23);
-    doc.text(`Method: ${payment.payment_method || "-"}`, pageWidth - 80, 30);
+    doc.text(
+      `Payment #: ${payment.payment_number || "-"}`,
+      pageWidth - 80,
+      16
+    );
+    doc.text(
+      `Date: ${formatDate(payment.payment_date)}`,
+      pageWidth - 80,
+      23
+    );
+    doc.text(
+      `Method: ${payment.payment_method || "-"}`,
+      pageWidth - 80,
+      30
+    );
 
     doc.setTextColor(30, 41, 59);
     doc.setFont("helvetica", "bold");
     doc.text("RECEIVED FROM", 14, 56);
+
     doc.setFont("helvetica", "normal");
     doc.text(payment.customer_name || "-", 14, 64);
 
@@ -825,25 +870,45 @@ export default function SalesPaymentsPage() {
 
     doc.setFont("helvetica", "bold");
     doc.text("AGAINST INVOICE", pageWidth / 2, 56);
+
     doc.setFont("helvetica", "normal");
     doc.text(payment.invoice_number || "-", pageWidth / 2, 64);
 
+    doc.setFont("helvetica", "bold");
+    doc.text("DEPOSITED INTO", pageWidth / 2, 76);
+
+    doc.setFont("helvetica", "normal");
+    doc.text(
+      getAccountLabel({
+        account_code: payment.account_code,
+        account_name: payment.account_name,
+      }),
+      pageWidth / 2,
+      83
+    );
+
     autoTable(doc, {
-      startY: 84,
-      head: [["Payment Number", "Invoice", "Method", "Reference", "Amount"]],
+      startY: 94,
+      head: [
+        ["Payment Number", "Invoice", "Method", "Account", "Reference", "Amount"],
+      ],
       body: [
         [
           payment.payment_number || "-",
           payment.invoice_number || "-",
           payment.payment_method || "-",
+          getAccountLabel({
+            account_code: payment.account_code,
+            account_name: payment.account_name,
+          }),
           payment.reference_number || "-",
           Number(payment.amount || 0).toFixed(2),
         ],
       ],
       theme: "grid",
       styles: {
-        fontSize: 9,
-        cellPadding: 4,
+        fontSize: 8,
+        cellPadding: 3,
         textColor: [51, 65, 85],
         lineColor: [226, 232, 240],
       },
@@ -852,7 +917,9 @@ export default function SalesPaymentsPage() {
         textColor: [255, 255, 255],
         fontStyle: "bold",
       },
-      columnStyles: { 4: { halign: "right" } },
+      columnStyles: {
+        5: { halign: "right" },
+      },
     });
 
     let finalY = doc.lastAutoTable.finalY + 16;
@@ -880,7 +947,11 @@ export default function SalesPaymentsPage() {
       finalY += 7;
       doc.setFont("helvetica", "normal");
 
-      const noteLines = doc.splitTextToSize(payment.notes, pageWidth - 28);
+      const noteLines = doc.splitTextToSize(
+        payment.notes,
+        pageWidth - 28
+      );
+
       doc.text(noteLines, 14, finalY);
     }
 
@@ -907,7 +978,7 @@ export default function SalesPaymentsPage() {
     doc.save(`Payment-${filename}.pdf`);
   }
 
-  // Keep all hooks above this point. View permission controls the entire page.
+  // All hooks must remain above the permission-based returns.
   if (permissionLoading) {
     return <PermissionLoading />;
   }
@@ -929,6 +1000,7 @@ export default function SalesPaymentsPage() {
             </div>
           </div>
         )}
+
         <AccessDenied onBack={() => window.history.back()} />
       </div>
     );
@@ -962,6 +1034,7 @@ export default function SalesPaymentsPage() {
                 <Icon name="shield" className="h-4 w-4" />
                 Payment management
               </span>
+
               <span className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2">
                 <Icon name="receipt" className="h-4 w-4" />
                 Printable receipts
@@ -1019,6 +1092,7 @@ export default function SalesPaymentsPage() {
             icon="receipt"
             accent="blue"
           />
+
           <SummaryCard
             title="Total Amount Collected"
             value={`₨ ${formatMoney(totalCollected)}`}
@@ -1026,6 +1100,7 @@ export default function SalesPaymentsPage() {
             icon="wallet"
             accent="green"
           />
+
           <SummaryCard
             title="Payment Methods Used"
             value={paymentMethodsUsed.toLocaleString("en-PK")}
@@ -1055,6 +1130,7 @@ export default function SalesPaymentsPage() {
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">
                   {editingPaymentId ? "Edit Payment" : "Record a Payment"}
                 </h2>
+
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                   {editingPaymentId
                     ? "Update the information for this customer receipt."
@@ -1077,6 +1153,7 @@ export default function SalesPaymentsPage() {
                 <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-xs font-bold text-blue-700 dark:bg-blue-400/10 dark:text-blue-300">
                   1
                 </span>
+
                 <h3 className="font-bold text-slate-800 dark:text-slate-100">
                   Payment details
                 </h3>
@@ -1100,6 +1177,7 @@ export default function SalesPaymentsPage() {
                   <label className={labelClass}>
                     Sales Invoice <span className="text-red-500">*</span>
                   </label>
+
                   <select
                     value={invoiceId}
                     onChange={(e) => setInvoiceId(e.target.value)}
@@ -1107,6 +1185,7 @@ export default function SalesPaymentsPage() {
                     className={inputClass}
                   >
                     <option value="">Select an invoice</option>
+
                     {invoices
                       .filter(
                         (invoice) =>
@@ -1129,6 +1208,7 @@ export default function SalesPaymentsPage() {
                   <label className={labelClass}>
                     Payment Date <span className="text-red-500">*</span>
                   </label>
+
                   <input
                     type="date"
                     value={paymentDate}
@@ -1142,21 +1222,24 @@ export default function SalesPaymentsPage() {
                   <label className={labelClass}>
                     Amount <span className="text-red-500">*</span>
                   </label>
+
                   <div className="relative">
                     <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-sm font-bold text-slate-400 dark:text-slate-500">
                       ₨
                     </span>
+
                     <input
                       type="number"
-                      min="1"
-                      step="1"
+                      min="0.01"
+                      step="0.01"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       required
-                      placeholder="0"
+                      placeholder="0.00"
                       className={`${inputClass} pl-9 font-semibold tabular-nums`}
                     />
                   </div>
+
                   <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
                     Enter a positive amount in PKR.
                   </p>
@@ -1166,6 +1249,7 @@ export default function SalesPaymentsPage() {
                   <label className={labelClass}>
                     Payment Method <span className="text-red-500">*</span>
                   </label>
+
                   <select
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value)}
@@ -1180,6 +1264,42 @@ export default function SalesPaymentsPage() {
                   </select>
                 </div>
 
+                {/* Cash / Bank account selection */}
+                <div>
+                  <label className={labelClass}>
+                    Deposit Account <span className="text-red-500">*</span>
+                  </label>
+
+                  <select
+                    value={accountId}
+                    onChange={(e) => setAccountId(e.target.value)}
+                    required
+                    className={inputClass}
+                  >
+                    {/* <option value="">Select Cash/Bank account</option> */}
+
+                    {accounts.map((account) => (
+                      <option
+                        key={account.account_id}
+                        value={account.account_id}
+                      >
+                        {getAccountLabel(account)}
+                      </option>
+                    ))}
+                  </select>
+
+                  <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    Select the Cash or Bank ledger account receiving this
+                    payment.
+                  </p>
+
+                  {accounts.length === 0 && (
+                    <p className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400">
+                      No eligible Cash/Bank accounts were returned by the API.
+                    </p>
+                  )}
+                </div>
+
                 <div>
                   <label className={labelClass}>Reference Number</label>
                   <input
@@ -1192,6 +1312,7 @@ export default function SalesPaymentsPage() {
               </div>
             </div>
 
+            {/* Selected invoice summary */}
             {selectedInvoice && (
               <div className="overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-emerald-50 dark:border-slate-700 dark:from-blue-950/30 dark:to-emerald-950/20">
                 <div className="flex items-center gap-2 border-b border-blue-100 px-5 py-3 dark:border-slate-700">
@@ -1199,9 +1320,11 @@ export default function SalesPaymentsPage() {
                     name="receipt"
                     className="h-4 w-4 text-blue-600 dark:text-blue-400"
                   />
+
                   <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
                     Selected invoice summary
                   </h3>
+
                   <span className="ml-auto rounded-full bg-white/80 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                     {selectedInvoice.invoice_number || "Invoice"}
                   </span>
@@ -1216,6 +1339,7 @@ export default function SalesPaymentsPage() {
                       ₨ {formatMoney(selectedInvoice.total_amount)}
                     </p>
                   </div>
+
                   <div className="p-5">
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Already Paid
@@ -1224,6 +1348,7 @@ export default function SalesPaymentsPage() {
                       ₨ {formatMoney(selectedInvoice.paid_amount)}
                     </p>
                   </div>
+
                   <div className="p-5">
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Remaining Balance
@@ -1236,17 +1361,37 @@ export default function SalesPaymentsPage() {
               </div>
             )}
 
+            {/* Selected account summary */}
+            {selectedAccount && (
+              <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-400/20 dark:bg-emerald-400/[0.06]">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300">
+                  <Icon name="bank" className="h-5 w-5" />
+                </div>
+
+                <div>
+                  <p className="text-sm font-bold text-emerald-800 dark:text-emerald-200">
+                    Payment will be deposited into
+                  </p>
+                  <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-300">
+                    {getAccountLabel(selectedAccount)}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div>
               <div className="mb-4 flex items-center gap-2">
                 <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300">
                   2
                 </span>
+
                 <h3 className="font-bold text-slate-800 dark:text-slate-100">
                   Additional information
                 </h3>
               </div>
 
               <label className={labelClass}>Notes</label>
+
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -1262,7 +1407,7 @@ export default function SalesPaymentsPage() {
                   name="shield"
                   className="h-4 w-4 text-emerald-600 dark:text-emerald-400"
                 />
-                Please verify the invoice and amount before saving.
+                Please verify the invoice, account, and amount before saving.
               </p>
 
               <div className="flex flex-wrap justify-end gap-3">
@@ -1280,7 +1425,11 @@ export default function SalesPaymentsPage() {
 
                 <button
                   type="submit"
-                  disabled={saving || (editingPaymentId ? !canEdit : !canCreate)}
+                  disabled={
+                    saving ||
+                    accounts.length === 0 ||
+                    (editingPaymentId ? !canEdit : !canCreate)
+                  }
                   className={primaryButtonClass}
                 >
                   {saving ? (
@@ -1310,10 +1459,12 @@ export default function SalesPaymentsPage() {
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-300">
                   <Icon name="receipt" className="h-5 w-5" />
                 </div>
+
                 <div>
                   <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                     Payment History
                   </h2>
+
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                     Search, review, and edit recorded customer payments.
                   </p>
@@ -1357,12 +1508,13 @@ export default function SalesPaymentsPage() {
                 <option value="OTHER">Other</option>
               </select>
 
-
               {/* Columns dropdown */}
               <div className="relative z-[60] shrink-0">
                 <button
                   type="button"
-                  onClick={() => setShowColumnDropdown((previous) => !previous)}
+                  onClick={() =>
+                    setShowColumnDropdown((previous) => !previous)
+                  }
                   className={secondaryButtonClass}
                   aria-expanded={showColumnDropdown}
                   aria-haspopup="dialog"
@@ -1376,8 +1528,9 @@ export default function SalesPaymentsPage() {
 
                   <Icon
                     name="arrow"
-                    className={`h-3.5 w-3.5 transition-transform ${showColumnDropdown ? "rotate-90" : ""
-                      }`}
+                    className={`h-3.5 w-3.5 transition-transform ${
+                      showColumnDropdown ? "rotate-90" : ""
+                    }`}
                   />
                 </button>
 
@@ -1395,14 +1548,14 @@ export default function SalesPaymentsPage() {
                       role="dialog"
                       aria-label="Table column settings"
                     >
-                      {/* Header */}
                       <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-4 dark:border-slate-700">
                         <div>
                           <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                             Table Columns
                           </h3>
                           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                            {visibleColumnCount} of {paymentColumns.length} visible
+                            {visibleColumnCount} of {paymentColumns.length}{" "}
+                            visible
                           </p>
                         </div>
 
@@ -1416,9 +1569,7 @@ export default function SalesPaymentsPage() {
                         </button>
                       </div>
 
-                      {/* Scrollable list */}
                       <div className="columns-dropdown-scroll min-h-0 max-h-[55vh] overflow-y-auto overscroll-contain p-3">
-                        {/* Show All */}
                         <label className="mb-2 flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-3 dark:border-blue-400/20 dark:bg-blue-400/10">
                           <span className="text-sm font-bold text-blue-700 dark:text-blue-300">
                             Show All
@@ -1452,17 +1603,6 @@ export default function SalesPaymentsPage() {
                           </label>
                         ))}
                       </div>
-
-                      {/* Footer */}
-                       <div className="shrink-0 border-t border-slate-200 p-3 dark:border-slate-700">
-                        {/* <button
-                          type="button"
-                          onClick={resetColumns}
-                          className="w-full rounded-xl bg-blue-50 px-3 py-2.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100 dark:bg-blue-400/10 dark:text-blue-300 dark:hover:bg-blue-400/20"
-                        >
-                          Reset to Default
-                        </button> */}
-                      </div> 
                     </div>
                   </>
                 )}
@@ -1473,9 +1613,11 @@ export default function SalesPaymentsPage() {
           {loading ? (
             <div className="flex flex-col items-center justify-center px-6 py-16">
               <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600 dark:border-slate-700 dark:border-t-blue-400" />
+
               <p className="mt-4 font-semibold text-slate-700 dark:text-slate-200">
                 Loading payment history
               </p>
+
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 Retrieving your latest payment records...
               </p>
@@ -1485,11 +1627,13 @@ export default function SalesPaymentsPage() {
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300">
                 <Icon name="receipt" className="h-8 w-8" />
               </div>
+
               <h3 className="mt-5 text-lg font-bold text-slate-900 dark:text-white">
                 {payments.length === 0
                   ? "No payments recorded yet"
                   : "No matching payments"}
               </h3>
+
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">
                 {payments.length === 0
                   ? "Record your first customer payment to start building your payment history."
@@ -1539,12 +1683,13 @@ export default function SalesPaymentsPage() {
                         .map((column) => (
                           <th
                             key={column.key}
-                            className={`whitespace-nowrap px-5 py-4 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400 ${column.key === "amount"
-                              ? "text-right"
-                              : column.key === "actions"
-                                ? "text-center"
-                                : "text-left"
-                              }`}
+                            className={`whitespace-nowrap px-5 py-4 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400 ${
+                              column.key === "amount"
+                                ? "text-right"
+                                : column.key === "actions"
+                                  ? "text-center"
+                                  : "text-left"
+                            }`}
                           >
                             {column.label}
                           </th>
@@ -1618,7 +1763,9 @@ export default function SalesPaymentsPage() {
 
                         {visibleColumns.method && (
                           <td className="whitespace-nowrap px-5 py-4">
-                            <PaymentMethodBadge method={payment.payment_method} />
+                            <PaymentMethodBadge
+                              method={payment.payment_method}
+                            />
                           </td>
                         )}
 
@@ -1673,6 +1820,7 @@ export default function SalesPaymentsPage() {
                   </strong>{" "}
                   payment records
                 </span>
+
                 <span className="inline-flex items-center gap-1.5">
                   <Icon
                     name="shield"
@@ -1691,7 +1839,9 @@ export default function SalesPaymentsPage() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-sm sm:p-6"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setSelectedPayment(null);
+            if (e.target === e.currentTarget) {
+              setSelectedPayment(null);
+            }
           }}
         >
           <div
@@ -1705,6 +1855,7 @@ export default function SalesPaymentsPage() {
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-emerald-500 text-white shadow-md">
                   <Icon name="receipt" className="h-5 w-5" />
                 </div>
+
                 <div className="min-w-0">
                   <h2
                     id="payment-receipt-title"
@@ -1712,6 +1863,7 @@ export default function SalesPaymentsPage() {
                   >
                     Payment Receipt
                   </h2>
+
                   <p className="mt-1 truncate text-sm text-slate-500 dark:text-slate-400">
                     {selectedPayment.payment_number || "Receipt"}
                   </p>
@@ -1738,10 +1890,12 @@ export default function SalesPaymentsPage() {
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-emerald-500 text-white">
                       <Icon name="receipt" className="h-5 w-5" />
                     </div>
+
                     <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
                       GOLDENLAKE
                     </h1>
                   </div>
+
                   <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
                     Customer Payment Receipt
                   </p>
@@ -1751,16 +1905,27 @@ export default function SalesPaymentsPage() {
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Payment Reference
                   </p>
+
                   <p className="mt-1 break-all font-bold text-slate-900 dark:text-white">
                     {selectedPayment.payment_number || "-"}
                   </p>
+
                   <p className="mt-3 text-slate-600 dark:text-slate-300">
                     <strong>Date:</strong>{" "}
                     {formatDate(selectedPayment.payment_date)}
                   </p>
+
                   <p className="mt-1 text-slate-600 dark:text-slate-300">
                     <strong>Method:</strong>{" "}
                     {selectedPayment.payment_method || "-"}
+                  </p>
+
+                  <p className="mt-1 text-slate-600 dark:text-slate-300">
+                    <strong>Account:</strong>{" "}
+                    {getAccountLabel({
+                      account_code: selectedPayment.account_code,
+                      account_name: selectedPayment.account_name,
+                    })}
                   </p>
                 </div>
               </div>
@@ -1770,14 +1935,17 @@ export default function SalesPaymentsPage() {
                   <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Received From
                   </p>
+
                   <div className="mt-3 flex items-center gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300">
                       <Icon name="user" className="h-5 w-5" />
                     </div>
+
                     <div>
                       <p className="font-bold text-slate-900 dark:text-white">
                         {selectedPayment.customer_name || "-"}
                       </p>
+
                       {selectedPayment.customer_code && (
                         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                           Customer code: {selectedPayment.customer_code}
@@ -1791,14 +1959,17 @@ export default function SalesPaymentsPage() {
                   <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Against Invoice
                   </p>
+
                   <div className="mt-3 flex items-center gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-400/10 dark:text-blue-300">
                       <Icon name="file" className="h-5 w-5" />
                     </div>
+
                     <div>
                       <p className="font-bold text-slate-900 dark:text-white">
                         {selectedPayment.invoice_number || "-"}
                       </p>
+
                       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                         Linked sales invoice
                       </p>
@@ -1808,13 +1979,14 @@ export default function SalesPaymentsPage() {
               </div>
 
               <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
-                <table className="w-full min-w-[600px] border-collapse text-left">
+                <table className="w-full min-w-[650px] border-collapse text-left">
                   <thead className="bg-slate-50 dark:bg-slate-800">
                     <tr>
                       {[
                         "Payment Number",
                         "Invoice",
                         "Method",
+                        "Deposit Account",
                         "Reference",
                         "Amount",
                       ].map((heading) => (
@@ -1827,20 +1999,32 @@ export default function SalesPaymentsPage() {
                       ))}
                     </tr>
                   </thead>
+
                   <tbody>
                     <tr className="bg-white dark:bg-slate-900">
                       <td className="border-b border-slate-100 px-4 py-4 text-sm text-slate-700 dark:border-slate-800 dark:text-slate-200">
                         {selectedPayment.payment_number || "-"}
                       </td>
+
                       <td className="border-b border-slate-100 px-4 py-4 text-sm text-slate-700 dark:border-slate-800 dark:text-slate-200">
                         {selectedPayment.invoice_number || "-"}
                       </td>
+
                       <td className="border-b border-slate-100 px-4 py-4 text-sm text-slate-700 dark:border-slate-800 dark:text-slate-200">
                         {selectedPayment.payment_method || "-"}
                       </td>
+
+                      <td className="border-b border-slate-100 px-4 py-4 text-sm text-slate-700 dark:border-slate-800 dark:text-slate-200">
+                        {getAccountLabel({
+                          account_code: selectedPayment.account_code,
+                          account_name: selectedPayment.account_name,
+                        })}
+                      </td>
+
                       <td className="border-b border-slate-100 px-4 py-4 text-sm text-slate-700 dark:border-slate-800 dark:text-slate-200">
                         {selectedPayment.reference_number || "-"}
                       </td>
+
                       <td className="border-b border-slate-100 px-4 py-4 text-right text-sm font-bold text-slate-900 dark:border-slate-800 dark:text-white">
                         ₨ {formatMoney(selectedPayment.amount)}
                       </td>
@@ -1854,6 +2038,7 @@ export default function SalesPaymentsPage() {
                   <p className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
                     Total Payment Received
                   </p>
+
                   <p className="mt-2 text-2xl font-extrabold tabular-nums text-emerald-800 dark:text-emerald-200 sm:text-3xl">
                     ₨ {formatMoney(selectedPayment.amount)}
                   </p>
@@ -1865,6 +2050,7 @@ export default function SalesPaymentsPage() {
                   <p className="font-bold text-slate-900 dark:text-white">
                     Notes
                   </p>
+
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600 dark:text-slate-300">
                     {selectedPayment.notes}
                   </p>
@@ -1923,10 +2109,12 @@ export default function SalesPaymentsPage() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
           <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600 dark:border-slate-700 dark:border-t-blue-400" />
+
             <div>
               <p className="font-bold text-slate-900 dark:text-white">
                 Loading payment
               </p>
+
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 Please wait...
               </p>
@@ -1937,188 +2125,192 @@ export default function SalesPaymentsPage() {
 
       {/* Theme-aware styling and print receipt */}
       <style jsx global>{`
-  .sales-payments-page {
-    color-scheme: light;
-  }
+        .sales-payments-page {
+          color-scheme: light;
+        }
 
-  html[data-theme="dark"] .sales-payments-page {
-    color-scheme: dark;
-  }
+        html[data-theme="dark"] .sales-payments-page {
+          color-scheme: dark;
+        }
 
-  .sales-payments-page input,
-  .sales-payments-page select,
-  .sales-payments-page textarea {
-    color: inherit;
-  }
+        .sales-payments-page input,
+        .sales-payments-page select,
+        .sales-payments-page textarea {
+          color: inherit;
+        }
 
-  .sales-payments-page input::placeholder,
-  .sales-payments-page textarea::placeholder {
-    opacity: 1;
-  }
+        .sales-payments-page input::placeholder,
+        .sales-payments-page textarea::placeholder {
+          opacity: 1;
+        }
 
-  .sales-payments-page select option {
-    background: white;
-    color: #0f172a;
-  }
+        .sales-payments-page select option {
+          background: white;
+          color: #0f172a;
+        }
 
-  html[data-theme="dark"] .sales-payments-page select option {
-    background: #0f172a;
-    color: #f1f5f9;
-  }
+        html[data-theme="dark"] .sales-payments-page select option {
+          background: #0f172a;
+          color: #f1f5f9;
+        }
 
-  /* Columns dropdown scrollbar */
-  .columns-dropdown-scroll {
-  max-height: 55vh;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: #64748b #e2e8f0;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-}
+        .columns-dropdown-scroll {
+          max-height: 55vh;
+          overflow-y: auto;
+          overflow-x: hidden;
+          scrollbar-width: thin;
+          scrollbar-color: #64748b #e2e8f0;
+          -webkit-overflow-scrolling: touch;
+          overscroll-behavior: contain;
+        }
 
-  .columns-dropdown-scroll::-webkit-scrollbar {
-    width: 9px;
-  }
+        .columns-dropdown-scroll::-webkit-scrollbar {
+          width: 9px;
+        }
 
-  .columns-dropdown-scroll::-webkit-scrollbar-track {
-    background: #e2e8f0;
-    border-radius: 20px;
-  }
+        .columns-dropdown-scroll::-webkit-scrollbar-track {
+          background: #e2e8f0;
+          border-radius: 20px;
+        }
 
-  .columns-dropdown-scroll::-webkit-scrollbar-thumb {
-    background: #64748b;
-    border: 2px solid #e2e8f0;
-    border-radius: 20px;
-  }
+        .columns-dropdown-scroll::-webkit-scrollbar-thumb {
+          background: #64748b;
+          border: 2px solid #e2e8f0;
+          border-radius: 20px;
+        }
 
-  .columns-dropdown-scroll::-webkit-scrollbar-thumb:hover {
-    background: #475569;
-  }
+        .columns-dropdown-scroll::-webkit-scrollbar-thumb:hover {
+          background: #475569;
+        }
 
-  /* Payment table horizontal scrollbar */
-  .payment-table-scroll {
-    display: block;
-    width: 100%;
-    max-width: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: auto;
-    scrollbar-color: #64748b #e2e8f0;
-    -webkit-overflow-scrolling: touch;
-  }
+        .payment-table-scroll {
+          display: block;
+          width: 100%;
+          max-width: 100%;
+          overflow-x: auto;
+          overflow-y: hidden;
+          scrollbar-width: auto;
+          scrollbar-color: #64748b #e2e8f0;
+          -webkit-overflow-scrolling: touch;
+        }
 
-  .payment-table-scroll::-webkit-scrollbar {
-    height: 13px;
-  }
+        .payment-table-scroll::-webkit-scrollbar {
+          height: 13px;
+        }
 
-  .payment-table-scroll::-webkit-scrollbar-track {
-    background: #e2e8f0;
-    border-radius: 20px;
-  }
+        .payment-table-scroll::-webkit-scrollbar-track {
+          background: #e2e8f0;
+          border-radius: 20px;
+        }
 
-  .payment-table-scroll::-webkit-scrollbar-thumb {
-    background: #64748b;
-    border: 2px solid #e2e8f0;
-    border-radius: 20px;
-  }
+        .payment-table-scroll::-webkit-scrollbar-thumb {
+          background: #64748b;
+          border: 2px solid #e2e8f0;
+          border-radius: 20px;
+        }
 
-  .payment-table-scroll::-webkit-scrollbar-thumb:hover {
-    background: #475569;
-  }
+        .payment-table-scroll::-webkit-scrollbar-thumb:hover {
+          background: #475569;
+        }
 
-  html[data-theme="dark"] .columns-dropdown-scroll,
-  html[data-theme="dark"] .payment-table-scroll {
-    scrollbar-color: #64748b #1e293b;
-  }
+        html[data-theme="dark"] .columns-dropdown-scroll,
+        html[data-theme="dark"] .payment-table-scroll {
+          scrollbar-color: #64748b #1e293b;
+        }
 
-  html[data-theme="dark"] .columns-dropdown-scroll::-webkit-scrollbar-track,
-  html[data-theme="dark"] .payment-table-scroll::-webkit-scrollbar-track {
-    background: #1e293b;
-  }
+        html[data-theme="dark"]
+          .columns-dropdown-scroll::-webkit-scrollbar-track,
+        html[data-theme="dark"]
+          .payment-table-scroll::-webkit-scrollbar-track {
+          background: #1e293b;
+        }
 
-  html[data-theme="dark"] .columns-dropdown-scroll::-webkit-scrollbar-thumb,
-  html[data-theme="dark"] .payment-table-scroll::-webkit-scrollbar-thumb {
-    background: #64748b;
-    border-color: #1e293b;
-  }
+        html[data-theme="dark"]
+          .columns-dropdown-scroll::-webkit-scrollbar-thumb,
+        html[data-theme="dark"]
+          .payment-table-scroll::-webkit-scrollbar-thumb {
+          background: #64748b;
+          border-color: #1e293b;
+        }
 
-  html[data-theme="dark"] .columns-dropdown-scroll::-webkit-scrollbar-thumb:hover,
-  html[data-theme="dark"] .payment-table-scroll::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
-  }
+        html[data-theme="dark"]
+          .columns-dropdown-scroll::-webkit-scrollbar-thumb:hover,
+        html[data-theme="dark"]
+          .payment-table-scroll::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
 
-  @media print {
-    @page {
-      size: auto;
-      margin: 12mm;
-    }
+        @media print {
+          @page {
+            size: auto;
+            margin: 12mm;
+          }
 
-    body * {
-      visibility: hidden !important;
-    }
+          body * {
+            visibility: hidden !important;
+          }
 
-    #payment-receipt,
-    #payment-receipt * {
-      visibility: visible !important;
-    }
+          #payment-receipt,
+          #payment-receipt * {
+            visibility: visible !important;
+          }
 
-    #payment-receipt {
-      position: absolute !important;
-      left: 0 !important;
-      top: 0 !important;
-      width: 100% !important;
-      max-height: none !important;
-      overflow: visible !important;
-      padding: 0 !important;
-      color: #0f172a !important;
-      background: #ffffff !important;
-    }
+          #payment-receipt {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-height: none !important;
+            overflow: visible !important;
+            padding: 0 !important;
+            color: #0f172a !important;
+            background: #ffffff !important;
+          }
 
-    #payment-receipt,
-    #payment-receipt * {
-      color: #0f172a !important;
-      border-color: #e2e8f0 !important;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
+          #payment-receipt,
+          #payment-receipt * {
+            color: #0f172a !important;
+            border-color: #e2e8f0 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
 
-    #payment-receipt .bg-slate-50,
-    #payment-receipt .bg-white,
-    #payment-receipt .dark\\:bg-slate-900 {
-      background: #ffffff !important;
-    }
+          #payment-receipt .bg-slate-50,
+          #payment-receipt .bg-white,
+          #payment-receipt .dark\\:bg-slate-900 {
+            background: #ffffff !important;
+          }
 
-    #payment-receipt .bg-emerald-50 {
-      background: #ecfdf5 !important;
-    }
+          #payment-receipt .bg-emerald-50 {
+            background: #ecfdf5 !important;
+          }
 
-    #payment-receipt .text-emerald-800 {
-      color: #065f46 !important;
-    }
+          #payment-receipt .text-emerald-800 {
+            color: #065f46 !important;
+          }
 
-    #payment-receipt .text-emerald-700 {
-      color: #047857 !important;
-    }
+          #payment-receipt .text-emerald-700 {
+            color: #047857 !important;
+          }
 
-    #payment-receipt .text-slate-500,
-    #payment-receipt .text-slate-400 {
-      color: #64748b !important;
-    }
+          #payment-receipt .text-slate-500,
+          #payment-receipt .text-slate-400 {
+            color: #64748b !important;
+          }
 
-    #payment-receipt .text-slate-900 {
-      color: #0f172a !important;
-    }
+          #payment-receipt .text-slate-900 {
+            color: #0f172a !important;
+          }
 
-    #payment-receipt .text-slate-700 {
-      color: #334155 !important;
-    }
+          #payment-receipt .text-slate-700 {
+            color: #334155 !important;
+          }
 
-    .sales-payments-page {
-      background: #ffffff !important;
-    }
-  }
-`}</style>
+          .sales-payments-page {
+            background: #ffffff !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
