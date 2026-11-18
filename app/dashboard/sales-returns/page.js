@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -762,9 +761,9 @@ export default function SalesReturnsPage() {
         }
 
         const refundAmount =
-    form.refundAmount === ""
-        ? total
-        : num(form.refundAmount);
+            form.refundAmount === ""
+                ? total
+                : num(form.refundAmount);
 
         if (refundAmount < 0 || refundAmount > total) {
             return setError("Refund amount must be between zero and the return total.");
@@ -920,16 +919,16 @@ export default function SalesReturnsPage() {
             );
 
             setForm({
-    returnDate: String(header.return_date || today()).slice(0, 10),
-    customerId: String(header.customer_id || ""),
-    warehouseId: String(header.warehouse_id || ""),
-    refundMethod: header.refund_method || "CUSTOMER_CREDIT",
-    refundAmount:
-        Number(header.refund_amount || 0) === 0
-            ? ""
-            : String(header.refund_amount),
-    notes: header.notes || "",
-});
+                returnDate: String(header.return_date || today()).slice(0, 10),
+                customerId: String(header.customer_id || ""),
+                warehouseId: String(header.warehouse_id || ""),
+                refundMethod: header.refund_method || "CUSTOMER_CREDIT",
+                refundAmount:
+                    Number(header.refund_amount || 0) === 0
+                        ? ""
+                        : String(header.refund_amount),
+                notes: header.notes || "",
+            });
 
             setLines(
                 itemRows.map((item) => ({
@@ -1315,23 +1314,25 @@ export default function SalesReturnsPage() {
 
                         {screen === "history" ? (
                             <div className="flex flex-wrap gap-3">
-                                <button
-                                    onClick={() => startNew("MANUAL")}
-                                    disabled={!rights.create}
-                                    className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-indigo-900 shadow-lg transition hover:bg-indigo-50 disabled:opacity-40"
-                                >
-                                    <Icon name="plus" />
-                                    Manual Return
-                                </button>
+                                {rights.create && (
+    <button
+        onClick={() => startNew("MANUAL")}
+        className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-indigo-900 shadow-lg transition hover:bg-indigo-50"
+    >
+        <Icon name="plus" />
+        Manual Return
+    </button>
+)}
 
-                                <button
-                                    onClick={() => startNew("INVOICE")}
-                                    disabled={!rights.create}
-                                    className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-bold text-white backdrop-blur transition hover:bg-white/20 disabled:opacity-40"
-                                >
-                                    <Icon name="invoice" />
-                                    From Invoice
-                                </button>
+                                {rights.create && (
+    <button
+        onClick={() => startNew("INVOICE")}
+        className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-bold text-white backdrop-blur transition hover:bg-white/20"
+    >
+        <Icon name="invoice" />
+        From Invoice
+    </button>
+)}
                             </div>
                         ) : (
                             <button
@@ -2271,18 +2272,20 @@ export default function SalesReturnsPage() {
                                             Cancel
                                         </button>
 
-                                        <button
-                                            onClick={saveReturn}
-                                            disabled={saving}
-                                            className={primaryButton}
-                                        >
-                                            {saving
-                                                ? "Saving..."
-                                                : editingId
-                                                    ? "Update Return"
-                                                    : "Save as Draft"}
-                                            {!saving && <Icon name="check" className="h-4 w-4" />}
-                                        </button>
+                                        {((editingId && rights.update) || (!editingId && rights.create)) && (
+    <button
+        onClick={saveReturn}
+        disabled={saving}
+        className={primaryButton}
+    >
+        {saving
+            ? "Saving..."
+            : editingId
+                ? "Update Return"
+                : "Save as Draft"}
+        {!saving && <Icon name="check" className="h-4 w-4" />}
+    </button>
+)}
                                     </>
                                 )}
                             </div>
