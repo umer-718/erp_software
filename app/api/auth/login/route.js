@@ -244,39 +244,54 @@ export async function POST(request) {
 
     // 6. Require company selection when no company was supplied.
 
-    if (companyId === null) {
-      const companies = getUniqueCompanies(matchingUsers);
+    // 6. Automatically select company when the user has only one company.
 
-      if (companies.length === 0) {
-        responseStatus = 403;
+let finalSelectedCompanyId = companyId;
 
-        return jsonResponse(
-          {
-            success: false,
-            message: "No valid company is available for this account.",
-          },
-          403
-        );
-      }
+if (finalSelectedCompanyId === null) {
+  const companies = getUniqueCompanies(matchingUsers);
 
-      responseStatus = 409;
+  if (companies.length === 0) {
+    responseStatus = 403;
 
-      return jsonResponse(
-        {
-          success: false,
-          code: "COMPANY_SELECTION_REQUIRED",
-          message: "Select the company you want to access.",
-          companies,
-        },
-        409
-      );
-    }
-
-    // 7. Find the selected company with a matching password.
-
-    const user = matchingUsers.find(
-      (item) => Number(item.company_id) === companyId
+    return jsonResponse(
+      {
+        success: false,
+        message: "No valid company is available for this account.",
+      },
+      403
     );
+  }
+
+  // Only one company: automatically select it.
+  if (companies.length === 1) {
+    finalSelectedCompanyId = Number(
+      companies[0].company_id
+    );
+  }
+
+  // Multiple companies: ask user to select one.
+  else {
+    responseStatus = 409;
+
+    return jsonResponse(
+      {
+        success: false,
+        code: "COMPANY_SELECTION_REQUIRED",
+        message: "Select the company you want to access.",
+        companies,
+      },
+      409
+    );
+  }
+}
+
+// 7. Find the selected company with a matching password.
+
+const user = matchingUsers.find(
+  (item) =>
+    Number(item.company_id) === finalSelectedCompanyId
+);
 
     if (!user) {
       responseStatus = 403;

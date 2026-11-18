@@ -117,7 +117,11 @@ const companyName =
   data.user?.company_name ??
   "";
 
-if (!companyId || !/^[1-9]\d*$/.test(companyId) || !companyName.trim()) {
+if (
+  !companyId ||
+  !/^[1-9]\d*$/.test(companyId) ||
+  !companyName.trim()
+) {
   console.error("Invalid login response:", data);
 
   setError(
@@ -128,17 +132,13 @@ if (!companyId || !/^[1-9]\d*$/.test(companyId) || !companyName.trim()) {
 }
 
       // Preserve company context for the logout redirect.
-      if (initialCompanyId || selectedCompanyId) {
-        localStorage.setItem(
-          SELECTED_COMPANY_KEY,
-          JSON.stringify({
-            companyId,
-            companyName,
-          })
-        );
-      } else {
-        localStorage.removeItem(SELECTED_COMPANY_KEY);
-      }
+      localStorage.setItem(
+  SELECTED_COMPANY_KEY,
+  JSON.stringify({
+    companyId,
+    companyName,
+  })
+);
 
       // IMPORTANT:
       // Start a fresh idle timer for the newly authenticated session.
