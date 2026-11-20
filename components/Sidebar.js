@@ -172,6 +172,11 @@ const ROUTE_PERMISSION_KEYS = {
   "/dashboard/purchase-payments": "purchase_payment",
   "/dashboard/reports/purchases": "purchase_dashboard",
 
+
+   "/dashboard/bill-of-materials": "bill_of_materials",
+"/dashboard/assembly-build": "assembly_build",
+"/dashboard/assembly-unbuild": "assembly_unbuild",
+
   // Accounting
   "/dashboard/chart-of-accounts": "chart_of_accounts",
   "/dashboard/journal-entries": "journal_entries",

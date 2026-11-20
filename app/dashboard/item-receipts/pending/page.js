@@ -2419,7 +2419,7 @@ export default function PendingItemReceiptsPage() {
 
                                             <input
                                                 type="number"
-                                                min="0.0001"
+                                                min="1"
                                                 step="any"
                                                 value={newItem.quantityExpected}
                                                 onChange={(event) =>
@@ -2635,7 +2635,7 @@ export default function PendingItemReceiptsPage() {
                                                 <td className="px-4 py-3">
                                                     <input
                                                         type="number"
-                                                        min="0.0001"
+                                                        min="1"
                                                         step="any"
                                                         value={item.quantityExpected}
                                                         onChange={(event) =>

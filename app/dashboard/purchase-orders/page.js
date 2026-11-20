@@ -2452,7 +2452,7 @@ export default function PurchaseOrdersPage() {
 
                     <input
                         type="number"
-                        min="0.001"
+                        min="1"
                         step="any"
                         value={newItem.quantity}
                         onChange={(event) =>
@@ -2747,7 +2747,7 @@ export default function PurchaseOrdersPage() {
                                 <td className="px-2 py-2">
                                     <input
                                         type="number"
-                                        min="0.001"
+                                        min="1"
                                         step="any"
                                         disabled={isReadOnly || !canModifyCurrentForm}
                                         value={item.quantity}

@@ -1230,12 +1230,12 @@ export default function SalesPaymentsPage() {
 
                     <input
                       type="number"
-                      min="0.01"
-                      step="0.01"
+                      min="1"
+                      step="1"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       required
-                      placeholder="0.00"
+                      placeholder="0"
                       className={`${inputClass} pl-9 font-semibold tabular-nums`}
                     />
                   </div>

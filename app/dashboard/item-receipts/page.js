@@ -1582,7 +1582,7 @@ export default function ItemReceiptsPage() {
                                     <Field label="Received Quantity" required>
                                         <input
                                             type="number"
-                                            min="0.0001"
+                                            min="1"
                                             step="any"
                                             className={INPUT_CLASS}
                                             value={newItem.quantityReceived}
@@ -1797,7 +1797,7 @@ export default function ItemReceiptsPage() {
                                             <Field label="Received Quantity" required>
                                                 <input
                                                     type="number"
-                                                    min="0.0001"
+                                                    min="1"
                                                     step="any"
                                                     className={INPUT_CLASS}
                                                     value={item.quantityReceived}

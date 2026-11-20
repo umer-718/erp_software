@@ -1683,7 +1683,7 @@ export default function PurchaseInvoicesPage() {
 
                                                 <input
                                                     type="number"
-                                                    min="0.0001"
+                                                    min="1"
                                                     step="any"
                                                     value={newItem.quantity}
                                                     onChange={(event) =>

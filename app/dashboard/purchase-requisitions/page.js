@@ -1803,7 +1803,7 @@ setItemError("");
 
                     <input
                         type="number"
-                        min="0.001"
+                        min="1"
                         step="any"
                         value={newItem.quantity}
                         onChange={(e) =>
@@ -2116,7 +2116,7 @@ setItemError("");
                                     <input
                                         required
                                         type="number"
-                                        min="0.001"
+                                        min="1"
                                         step="any"
                                         value={item.quantity}
                                         onChange={(e) =>

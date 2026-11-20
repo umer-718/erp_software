@@ -720,7 +720,7 @@ export default function BalanceSheetPage() {
   const totalEquity = toNumber(totals.totalEquityWithProfit);
   const difference = toNumber(totals.difference);
 
-  const isBalanced = Math.abs(difference) < 0.01;
+  const isBalanced = Math.abs(difference) < 1;
   const liabilitiesAndEquity = totalLiabilities + totalEquity;
 
   const assetCoverage =

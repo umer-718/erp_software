@@ -1093,7 +1093,7 @@ export default function DeliveryChallanForm({ challanId = null }) {
                         <input
                             className={inputClass}
                             type="number"
-                            min="0.000001"
+                            min="1"
                             step="any"
                             required
                             value={form.exchange_rate}
@@ -1208,7 +1208,7 @@ export default function DeliveryChallanForm({ challanId = null }) {
 
                                     <input
                                         type="number"
-                                        min="0.01"
+                                        min="1"
                                         step="any"
                                         value={quick.quantity}
                                         onChange={(event) =>
