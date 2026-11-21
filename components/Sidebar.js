@@ -1075,108 +1075,117 @@ function SidebarContent({
 
   function renderHorizontalModules() {
     return (
-      <nav
-        aria-label="Main navigation"
-        className="flex min-w-0 flex-1 items-center gap-1"
-      >
-        {renderDashboardLink(true)}
+        <nav
+            aria-label="Main navigation"
+            className="flex min-w-0 flex-1 items-center gap-1"
+        >
+            {/* Dashboard */}
+            <div className="min-w-0 flex-1">
+                {renderDashboardLink(true)}
+            </div>
 
-        {permissionsLoading && (
-          <div className="flex items-center gap-2 px-3 text-xs text-slate-400">
-            <RefreshCw
-              size={13}
-              className="animate-spin"
-            />
-            Loading...
-          </div>
-        )}
+            {permissionsLoading && (
+                <div className="flex flex-1 items-center justify-center gap-2 px-3 text-xs text-slate-400">
+                    <RefreshCw size={13} className="animate-spin" />
+                    Loading...
+                </div>
+            )}
 
-        {permissionsError && (
-          <button
-            type="button"
-            onClick={() => void loadPermissions()}
-            className="flex items-center gap-1 rounded-lg px-3 py-2 text-xs text-amber-300 hover:bg-slate-800"
-          >
-            <ShieldAlert size={14} />
-            Retry permissions
-          </button>
-        )}
-
-        {!permissionsLoading &&
-          !permissionsError &&
-          visibleModules.map((module) => {
-            const ModuleIcon =
-              moduleIcons[module.id] || Package;
-
-            const isOpen =
-              effectiveOpenModule === module.id;
-
-            const moduleActive = isModuleActive(
-              module,
-              pathname
-            );
-
-            return (
-              <div
-                key={module.id}
-                className="relative min-w-0 shrink-0"
-              >
-                {/* Parent module */}
+            {permissionsError && (
                 <button
-                  type="button"
-                  onClick={() => toggleModule(module.id)}
-                  aria-expanded={Boolean(isOpen)}
-                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors ${moduleActive || isOpen
-                    ? "bg-blue-600 text-white"
-                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                    }`}
+                    type="button"
+                    onClick={() => void loadPermissions()}
+                    className="flex flex-1 items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs text-amber-300 hover:bg-slate-800"
                 >
-                  <ModuleIcon size={15} />
-
-                  <span>{module.name}</span>
-
-                  {isOpen ? (
-                    <ChevronDown size={13} />
-                  ) : (
-                    <ChevronRight size={13} />
-                  )}
+                    <ShieldAlert size={14} />
+                    Retry permissions
                 </button>
+            )}
 
-                {/* Sections and individual pages */}
-                {isOpen && (
-                  <div className="absolute left-0 top-full z-[150] mt-2 max-h-[75dvh] w-[320px] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border border-slate-700 bg-slate-950 p-3 text-white shadow-2xl">
-                    <div className="mb-3 flex items-center gap-2 border-b border-slate-800 pb-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600/20 text-blue-400">
-                        <ModuleIcon size={17} />
-                      </div>
+            {!permissionsLoading &&
+                !permissionsError &&
+                visibleModules.map((module) => {
+                    const ModuleIcon =
+                        moduleIcons[module.id] || Package;
 
-                      <span className="text-sm font-semibold">
-                        {module.name}
-                      </span>
-                    </div>
+                    const isOpen =
+                        effectiveOpenModule === module.id;
 
-                    <div className="space-y-1">
-                      {module.sections.map((section) =>
-                        renderSection(section, module.id)
-                      )}
-                    </div>
+                    const moduleActive =
+                        isModuleActive(module, pathname);
 
-                    <Link
-                      href={`/dashboard/modules/${module.id}`}
-                      onClick={handleNavigation}
-                      className="mt-3 flex items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
-                    >
-                      <Grid3X3 size={13} />
-                      Open {module.name} module
-                    </Link>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-      </nav>
+                    return (
+                        <div
+                            key={module.id}
+                            className="relative min-w-0 flex-1"
+                        >
+                            <button
+                                type="button"
+                                onClick={() => toggleModule(module.id)}
+                                aria-expanded={Boolean(isOpen)}
+                                title={module.name}
+                                className={`flex w-full min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-medium transition-colors ${moduleActive || isOpen
+                                    ? "bg-blue-600 text-white"
+                                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                                    }`}
+                            >
+                                <ModuleIcon
+                                    size={15}
+                                    className="shrink-0"
+                                />
+
+                                <span className="min-w-0 truncate">
+                                    {module.name}
+                                </span>
+
+                                {isOpen ? (
+                                    <ChevronDown
+                                        size={13}
+                                        className="shrink-0"
+                                    />
+                                ) : (
+                                    <ChevronRight
+                                        size={13}
+                                        className="shrink-0"
+                                    />
+                                )}
+                            </button>
+
+                            {/* Module dropdown */}
+                            {isOpen && (
+                                <div className="absolute left-0 top-full z-[150] mt-2 max-h-[75dvh] w-[320px] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border border-slate-700 bg-slate-950 p-3 text-white shadow-2xl">
+                                    <div className="mb-3 flex items-center gap-2 border-b border-slate-800 pb-3">
+                                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600/20 text-blue-400">
+                                            <ModuleIcon size={17} />
+                                        </div>
+
+                                        <span className="text-sm font-semibold">
+                                            {module.name}
+                                        </span>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        {module.sections.map((section) =>
+                                            renderSection(section, module.id)
+                                        )}
+                                    </div>
+
+                                    <Link
+                                        href={`/dashboard/modules/${module.id}`}
+                                        onClick={handleNavigation}
+                                        className="mt-3 flex items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
+                                    >
+                                        <Grid3X3 size={13} />
+                                        Open {module.name} module
+                                    </Link>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+        </nav>
     );
-  }
+}
 
   // ===================================================
   // COLLAPSED SIDEBAR
@@ -1208,7 +1217,7 @@ function SidebarContent({
         className="relative z-[80] w-full shrink-0 border-b border-slate-800 bg-slate-950 text-white shadow-lg"
       >
         {/* Desktop horizontal navigation */}
-        <div className="hidden min-h-12 items-center gap-2 px-2 lg:flex">
+        <div className="hidden min-h-12 w-full items-center gap-2 px-3 lg:flex">
           <Link
             href="/dashboard"
             onClick={handleNavigation}

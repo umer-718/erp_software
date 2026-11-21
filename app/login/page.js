@@ -296,7 +296,7 @@ if (
           Secure Company Login
         </div>
 
-        <div className="mt-4 text-center">
+        {/* <div className="mt-4 text-center">
           <button
             type="button"
             onClick={() => router.push("/dashboard/register-company")}
@@ -304,7 +304,7 @@ if (
           >
             Company registration and selection
           </button>
-        </div>
+        </div> */}
       </div>
     </main>
   );
