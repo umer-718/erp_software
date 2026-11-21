@@ -18,10 +18,63 @@ function errorResponse(message, status = 500) {
 }
 
 // =====================================================
-// GET: LOAD PURCHASE PAYMENT HISTORY
+// GET: LOAD PAYMENT HISTORY OR ONE PAYMENT BY ID
 // =====================================================
-export async function GET() {
+export async function GET(request) {
     try {
+        const { searchParams } = new URL(request.url);
+        const paymentId = searchParams.get("id");
+
+        // Load one payment when an ID is supplied
+        if (paymentId) {
+            const result = await pool.query(
+                `
+                SELECT
+                    pp.payment_id,
+                    pp.payment_number,
+                    pp.purchase_id,
+                    p.purchase_number,
+                    p.purchase_date,
+                    p.total_amount,
+                    p.paid_amount,
+                    p.balance_amount,
+                    p.status AS purchase_status,
+                    p.document_status,
+                    pp.supplier_id,
+                    s.supplier_code,
+                    s.supplier_name,
+                    s.phone AS supplier_phone,
+                    s.email AS supplier_email,
+                    s.address AS supplier_address,
+                    pp.payment_date,
+                    pp.amount,
+                    pp.payment_method,
+                    pp.reference_number,
+                    pp.notes,
+                    pp.created_at
+                FROM purchase_payments pp
+                INNER JOIN purchases p
+                    ON p.purchase_id = pp.purchase_id
+                   AND p.supplier_id = pp.supplier_id
+                INNER JOIN suppliers s
+                    ON s.supplier_id = pp.supplier_id
+                WHERE pp.payment_id = $1
+                LIMIT 1
+                `,
+                [paymentId]
+            );
+
+            if (result.rows.length === 0) {
+                return errorResponse("Purchase payment not found.", 404);
+            }
+
+            return NextResponse.json({
+                success: true,
+                payment: result.rows[0],
+            });
+        }
+
+        // Existing behavior: load all payments
         const result = await pool.query(`
             SELECT
                 pp.payment_id,
@@ -40,6 +93,7 @@ export async function GET() {
             FROM purchase_payments pp
             INNER JOIN purchases p
                 ON p.purchase_id = pp.purchase_id
+               AND p.supplier_id = pp.supplier_id
             INNER JOIN suppliers s
                 ON s.supplier_id = pp.supplier_id
             ORDER BY pp.payment_id DESC
@@ -49,6 +103,7 @@ export async function GET() {
             success: true,
             payments: result.rows,
         });
+
     } catch (error) {
         console.error("PURCHASE PAYMENTS GET ERROR:", error);
 
@@ -58,7 +113,6 @@ export async function GET() {
         );
     }
 }
-
 // =====================================================
 // POST: CREATE PURCHASE PAYMENT
 // =====================================================

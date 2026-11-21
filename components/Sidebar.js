@@ -136,6 +136,7 @@ const ROUTE_PERMISSION_KEYS = {
   "/dashboard/customers": "customers",
   "/dashboard/customer-balance": "customers",
   "/dashboard/customer-ledger": "customers",
+  "/dashboard/customer-detail-ledger": "customer_detail_ledger",
 
   // Sales
   "/dashboard/pos": "sales",
@@ -158,6 +159,7 @@ const ROUTE_PERMISSION_KEYS = {
   "/dashboard/suppliers": "vendors",
   "/dashboard/supplier-balance": "supplier_balance",
   "/dashboard/supplier-ledger": "vendors_ledger",
+  "/dashboard/purchase-detail-ledger": "purchase_detail_ledger",
 
   // Purchase and Procurement
   "/dashboard/purchase-requisitions": "purchase_requisitions",
@@ -173,9 +175,9 @@ const ROUTE_PERMISSION_KEYS = {
   "/dashboard/reports/purchases": "purchase_dashboard",
 
 
-   "/dashboard/bill-of-materials": "bill_of_materials",
-"/dashboard/assembly-build": "assembly_build",
-"/dashboard/assembly-unbuild": "assembly_unbuild",
+  "/dashboard/bill-of-materials": "bill_of_materials",
+  "/dashboard/assembly-build": "assembly_build",
+  "/dashboard/assembly-unbuild": "assembly_unbuild",
 
   // Accounting
   "/dashboard/chart-of-accounts": "chart_of_accounts",
@@ -475,14 +477,14 @@ function SidebarContent({
 
   // Load once when the sidebar mounts.
   useEffect(() => {
-  const timer = window.setTimeout(() => {
-    void loadPermissions(false);
-  }, 0);
+    const timer = window.setTimeout(() => {
+      void loadPermissions(false);
+    }, 0);
 
-  return () => {
-    window.clearTimeout(timer);
-  };
-}, [loadPermissions]);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [loadPermissions]);
 
   // Refresh immediately when User Rights changes.
   useEffect(() => {
