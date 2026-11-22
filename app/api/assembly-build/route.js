@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -245,7 +245,9 @@ export async function GET(request) {
             conditions.push(`ab.status = $${values.length}`);
         }
 
-        const result = await pool.query(
+        const db = await getTenantDb(user);
+
+        const result = await db.query(
             `
             SELECT
                 ab.assembly_build_id,
@@ -385,7 +387,9 @@ export async function POST(request) {
             throw new Error("At least one BOM component is required.");
         }
 
-        client = await pool.connect();
+        const db = await getTenantDb(user);
+
+        client = await db.connect();
 
         await client.query("BEGIN");
         transactionStarted = true;

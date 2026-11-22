@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import pool, { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -115,6 +115,9 @@ export async function GET() {
             "view"
         );
 
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+
         const companyId = positiveId(user.companyId, "company");
 
         const [
@@ -123,7 +126,7 @@ export async function GET() {
             purchaseOrdersResult,
             productsResult,
         ] = await Promise.all([
-            pool.query(
+            db.query(
                 `
                 SELECT
                     pir.*,
@@ -154,7 +157,7 @@ export async function GET() {
                 [companyId]
             ),
 
-            pool.query(
+            db.query(
                 `
                 SELECT
                     supplier_id,
@@ -168,7 +171,7 @@ export async function GET() {
                 `
             ),
 
-            pool.query(
+            db.query(
                 `
                 SELECT
                     po.purchase_order_id,
@@ -189,7 +192,7 @@ export async function GET() {
                 [companyId]
             ),
 
-            pool.query(
+            db.query(
                 `
                 SELECT
                     product_id,
@@ -221,7 +224,7 @@ export async function GET() {
 /* -------------------------------------------------------------------------- */
 
 export async function POST(request) {
-    const client = await pool.connect();
+    let client;
 
     try {
         const user = await getCurrentUser();
@@ -273,17 +276,12 @@ export async function POST(request) {
             throw validationError("Invalid receipt source.");
         }
 
-        await client.query("BEGIN");
-
-        // Lock the company row while generating the receipt number.
-        // This prevents two simultaneous requests from generating
-        // the same receipt number for the same company.
-        const companyResult = await client.query(
+        // Company check runs on the central database.
+        const companyResult = await pool.query(
             `
             SELECT company_id
             FROM companies
             WHERE company_id = $1
-            FOR UPDATE
             `,
             [companyId]
         );
@@ -291,6 +289,21 @@ export async function POST(request) {
         if (companyResult.rowCount === 0) {
             throw validationError("Company not found.");
         }
+
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+        client = await db.connect();
+
+        await client.query("BEGIN");
+
+        // Serialize receipt number generation for this company
+        // (advisory lock replaces the old companies row lock).
+        // This prevents two simultaneous requests from generating
+        // the same receipt number for the same company.
+        await client.query(
+            "SELECT pg_advisory_xact_lock($1::integer, $2::integer)",
+            [companyId, 741207]
+        );
 
         let supplierId;
         let purchaseOrderId = null;
@@ -627,9 +640,9 @@ export async function POST(request) {
             { status: 201 }
         );
     } catch (error) {
-        await client.query("ROLLBACK").catch(() => {});
+        await client?.query("ROLLBACK").catch(() => {});
         return apiError(error);
     } finally {
-        client.release();
+        client?.release();
     }
 }

@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 import {
   required,
   positiveNumber,
@@ -32,6 +32,10 @@ function errorResponse(message, status = 400) {
 
 export async function GET(request, { params }) {
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
     const { id } = await params;
     const invoiceId = Number(id);
 
@@ -39,7 +43,7 @@ export async function GET(request, { params }) {
       return errorResponse("Invalid invoice ID.", 400);
     }
 
-    const invoiceResult = await pool.query(
+    const invoiceResult = await db.query(
       `
       SELECT
         si.invoice_id,
@@ -78,7 +82,7 @@ export async function GET(request, { params }) {
       return errorResponse("Sales invoice not found.", 404);
     }
 
-    const itemsResult = await pool.query(
+    const itemsResult = await db.query(
       `
       SELECT
         sii.invoice_item_id,
@@ -123,10 +127,15 @@ export async function GET(request, { params }) {
 // =====================================================
 
 export async function PUT(request, { params }) {
-  const client = await pool.connect();
+  let client;
   let transactionStarted = false;
 
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+    client = await db.connect();
+
     const { id } = await params;
     const invoiceId = Number(id);
 
@@ -1036,6 +1045,6 @@ export async function PUT(request, { params }) {
       { status: error.statusCode || 400 }
     );
   } finally {
-    client.release();
+    client?.release();
   }
 }

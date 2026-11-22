@@ -1,7 +1,7 @@
 
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,6 +43,10 @@ export async function POST(request) {
   let transactionStarted = false;
 
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
     const formData = await request.formData();
     const file = formData.get("file");
 
@@ -111,7 +115,7 @@ export async function POST(request) {
     let imported = 0;
     let skipped = 0;
 
-    client = await pool.connect();
+    client = await db.connect();
     await client.query("BEGIN");
     transactionStarted = true;
 

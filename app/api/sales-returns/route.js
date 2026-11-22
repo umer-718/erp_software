@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getOperationalPool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -122,6 +122,8 @@ export async function GET(request) {
             return auth.response;
         }
 
+        const db = await getOperationalPool(auth.companyId);
+
         const { searchParams } = new URL(request.url);
 
         const status = searchParams.get("status");
@@ -149,7 +151,7 @@ export async function GET(request) {
             `;
         }
 
-        const result = await pool.query(
+        const result = await db.query(
             `
             SELECT
                 sr.*,
@@ -212,6 +214,8 @@ export async function POST(request) {
             return auth.response;
         }
 
+        const db = await getOperationalPool(auth.companyId);
+
         const body = await request.json();
 
         const invoiceId =
@@ -273,7 +277,7 @@ export async function POST(request) {
             return errorResponse("Invalid refund method.");
         }
 
-        client = await pool.connect();
+        client = await db.connect();
 
         await client.query("BEGIN");
 

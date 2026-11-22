@@ -1,7 +1,7 @@
 
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 
@@ -83,6 +83,10 @@ export async function POST(request) {
   let client;
 
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
     const formData = await request.formData();
     const file = formData.get("file");
 
@@ -193,7 +197,7 @@ export async function POST(request) {
       );
     }
 
-    client = await pool.connect();
+    client = await db.connect();
 
     // Load accounting accounts once, rather than querying each row.
     const accountResult = await client.query(`

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getOperationalPool } from "@/lib/db";
 import { authorizeSalesQuotations } from "@/lib/sales-quotations-auth";
 
 export const runtime = "nodejs";
@@ -200,12 +200,13 @@ export async function GET(request) {
         }
 
         const { companyId } = authorization.user;
+        const db = await getOperationalPool(companyId);
         const { searchParams } = new URL(request.url);
 
         const search = (searchParams.get("search") || "").trim();
         const status = (searchParams.get("status") || "").trim();
 
-        const result = await pool.query(
+        const result = await db.query(
             `
             SELECT
                 q.quotation_id,
@@ -263,7 +264,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-    const client = await pool.connect();
+    let client;
 
     try {
         const authorization = await authorizeSalesQuotations("create");
@@ -276,6 +277,8 @@ export async function POST(request) {
         }
 
         const { userId, companyId } = authorization.user;
+        const db = await getOperationalPool(companyId);
+        client = await db.connect();
         const body = await request.json();
 
         const quotationDate = validDate(body.quotationDate);
@@ -458,7 +461,7 @@ export async function POST(request) {
             { status: 201 }
         );
     } catch (error) {
-        await client.query("ROLLBACK");
+        await client?.query("ROLLBACK");
 
         console.error("POST sales quotation error:", error);
 
@@ -485,6 +488,6 @@ export async function POST(request) {
             clientError ? 400 : 500
         );
     } finally {
-        client.release();
+        client?.release();
     }
 }

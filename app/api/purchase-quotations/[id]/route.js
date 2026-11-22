@@ -1,6 +1,7 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
+import { getCompanyProfile } from "@/lib/tenant";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -244,7 +245,10 @@ export async function GET(request, context) {
 
     const id = await getId(context);
 
-    const headerResult = await pool.query(
+    // Operational data lives in the company's own database.
+    const db = await getTenantDb(user);
+
+    const headerResult = await db.query(
       `
       SELECT
         pq.*,
@@ -256,9 +260,7 @@ export async function GET(request, context) {
         s.address AS supplier_address,
 
         r.transaction_number AS rfq_number,
-        r.transaction_date AS rfq_date,
-
-        c.company_name
+        r.transaction_date AS rfq_date
 
       FROM purchase_quotations pq
 
@@ -267,9 +269,6 @@ export async function GET(request, context) {
 
       LEFT JOIN rfqs r
         ON r.rfq_id = pq.rfq_id
-
-      LEFT JOIN companies c
-        ON c.company_id = pq.company_id
 
       WHERE
         pq.purchase_quotation_id = $1
@@ -290,7 +289,7 @@ export async function GET(request, context) {
       );
     }
 
-    const itemsResult = await pool.query(
+    const itemsResult = await db.query(
       `
       SELECT
         i.*,
@@ -313,11 +312,15 @@ export async function GET(request, context) {
       [id]
     );
 
+    // Company name comes from the central database.
+    const company = await getCompanyProfile(companyId);
+
     return NextResponse.json({
       success: true,
 
       quotation: {
         ...headerResult.rows[0],
+        company_name: company?.company_name ?? null,
         items: itemsResult.rows,
       },
     });
@@ -379,7 +382,9 @@ export async function PATCH(request, context) {
       throw validationError("Invalid request body.");
     }
 
-    client = await pool.connect();
+    // Operational data lives in the company's own database.
+    const db = await getTenantDb(user);
+    client = await db.connect();
 
     await client.query("BEGIN");
     transactionStarted = true;
@@ -1034,7 +1039,9 @@ export async function DELETE(request, context) {
 
     const id = await getId(context);
 
-    client = await pool.connect();
+    // Operational data lives in the company's own database.
+    const db = await getTenantDb(user);
+    client = await db.connect();
 
     await client.query("BEGIN");
     transactionStarted = true;

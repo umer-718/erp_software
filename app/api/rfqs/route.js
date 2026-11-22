@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import pool, { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission, hasPermission } from "@/lib/permissions";
 
@@ -212,6 +212,9 @@ export async function GET() {
 
         const companyId = Number(user.companyId);
 
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+
         const [
             historyResult,
             suppliersResult,
@@ -224,7 +227,7 @@ export async function GET() {
             /* RFQ history                                                      */
             /* ---------------------------------------------------------------- */
 
-            pool.query(
+            db.query(
                 `
                 SELECT
                     r.rfq_id,
@@ -312,7 +315,7 @@ export async function GET() {
             /* Active suppliers                                                 */
             /* ---------------------------------------------------------------- */
 
-            pool.query(
+            db.query(
                 `
                 SELECT
                     supplier_id,
@@ -331,7 +334,7 @@ export async function GET() {
             /* Purchase Requisition items                                       */
             /* ---------------------------------------------------------------- */
 
-            pool.query(
+            db.query(
                 `
                 SELECT
                     '${SOURCE_PURCHASE}'::VARCHAR AS source_type,
@@ -407,7 +410,7 @@ export async function GET() {
             /* Procurement Requisition items                                   */
             /* ---------------------------------------------------------------- */
 
-            pool.query(
+            db.query(
                 `
                 SELECT
                     '${SOURCE_PROCUREMENT}'::VARCHAR AS source_type,
@@ -513,7 +516,7 @@ export async function GET() {
             /* Direct Purchase: active product master                          */
             /* ---------------------------------------------------------------- */
 
-            pool.query(
+            db.query(
                 `
                 SELECT
                     '${SOURCE_DIRECT}'::VARCHAR AS source_type,
@@ -752,7 +755,9 @@ export async function POST(request) {
             );
         }
 
-        client = await pool.connect();
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+        client = await db.connect();
 
         await client.query("BEGIN");
         transactionStarted = true;

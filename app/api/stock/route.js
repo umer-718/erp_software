@@ -1,12 +1,16 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function GET(request) {
     try {
+        const tenant = await getTenantContext();
+        if (!tenant) return unauthorizedResponse();
+        const { db } = tenant;
+
         const { searchParams } = new URL(request.url);
         const warehouseParam = searchParams.get("warehouseId");
 
@@ -94,7 +98,7 @@ export async function GET(request) {
 
         const queryStartedAt = performance.now();
 
-const result = await pool.query(query, values);
+const result = await db.query(query, values);
 
 const queryDurationMs = Number(
     (performance.now() - queryStartedAt).toFixed(2)
@@ -107,9 +111,9 @@ console.info("[STOCK API PERFORMANCE]", {
         ? Number(warehouseParam)
         : null,
     pool: {
-        totalConnections: pool.totalCount,
-        idleConnections: pool.idleCount,
-        waitingRequests: pool.waitingCount,
+        totalConnections: db.totalCount,
+        idleConnections: db.idleCount,
+        waitingRequests: db.waitingCount,
     },
 });
 

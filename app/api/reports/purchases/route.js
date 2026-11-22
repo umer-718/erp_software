@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export async function GET(request) {
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
     const { searchParams } = new URL(request.url);
 
     const from = searchParams.get("from");
@@ -21,7 +24,7 @@ export async function GET(request) {
       dateCondition += ` AND purchase_date <= $${params.length}`;
     }
 
-    const summary = await pool.query(
+    const summary = await db.query(
       `
       SELECT
         COUNT(*)::int AS invoice_count,
@@ -38,7 +41,7 @@ export async function GET(request) {
       params
     );
 
-    const suppliers = await pool.query(
+    const suppliers = await db.query(
       `
       SELECT
         s.supplier_id,

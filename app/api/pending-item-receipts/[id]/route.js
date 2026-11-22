@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -100,11 +100,14 @@ export async function GET(request, { params }) {
             "view"
         );
 
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+
         const companyId = positiveId(user.companyId, "company");
         const { id } = await params;
         const receiptId = positiveId(id, "receipt ID");
 
-        const receiptResult = await pool.query(
+        const receiptResult = await db.query(
             `
             SELECT
                 pir.*,
@@ -136,7 +139,7 @@ export async function GET(request, { params }) {
             );
         }
 
-        const itemsResult = await pool.query(
+        const itemsResult = await db.query(
             `
             SELECT
                 piri.pending_item_receipt_item_id,
@@ -176,7 +179,7 @@ export async function GET(request, { params }) {
 /* -------------------------------------------------------------------------- */
 
 export async function PATCH(request, { params }) {
-    const client = await pool.connect();
+    let client;
 
     try {
         const user = await getCurrentUser();
@@ -201,6 +204,10 @@ export async function PATCH(request, { params }) {
         const receiptId = positiveId(id, "receipt ID");
 
         const body = await request.json();
+
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+        client = await db.connect();
 
         await client.query("BEGIN");
 
@@ -655,10 +662,10 @@ export async function PATCH(request, { params }) {
             },
         });
     } catch (error) {
-        await client.query("ROLLBACK").catch(() => {});
+        await client?.query("ROLLBACK").catch(() => {});
         return apiError(error);
     } finally {
-        client.release();
+        client?.release();
     }
 }
 
@@ -667,7 +674,7 @@ export async function PATCH(request, { params }) {
 /* -------------------------------------------------------------------------- */
 
 export async function DELETE(request, { params }) {
-    const client = await pool.connect();
+    let client;
 
     try {
         const user = await getCurrentUser();
@@ -688,6 +695,10 @@ export async function DELETE(request, { params }) {
         const companyId = positiveId(user.companyId, "company");
         const { id } = await params;
         const receiptId = positiveId(id, "receipt ID");
+
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+        client = await db.connect();
 
         await client.query("BEGIN");
 
@@ -738,9 +749,9 @@ export async function DELETE(request, { params }) {
             message: `Pending Item Receipt ${receipt.receipt_number} deleted successfully.`,
         });
     } catch (error) {
-        await client.query("ROLLBACK").catch(() => {});
+        await client?.query("ROLLBACK").catch(() => {});
         return apiError(error);
     } finally {
-        client.release();
+        client?.release();
     }
 }

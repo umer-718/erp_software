@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -54,6 +54,8 @@ export async function GET(request, { params }) {
 
         let warehouseId = null;
 
+        const db = await getTenantDb(user);
+
         if (warehouseIdParam) {
             warehouseId = Number(warehouseIdParam);
 
@@ -64,7 +66,7 @@ export async function GET(request, { params }) {
                 return jsonError("Invalid warehouse ID.", 400);
             }
 
-            const warehouseResult = await pool.query(
+            const warehouseResult = await db.query(
                 `
                 SELECT warehouse_id, warehouse_name
                 FROM warehouses
@@ -87,7 +89,7 @@ export async function GET(request, { params }) {
         // Load BOM belonging to the current company
         // -------------------------------------------------
 
-        const bomResult = await pool.query(
+        const bomResult = await db.query(
             `
             SELECT
                 b.bom_id,
@@ -151,7 +153,7 @@ export async function GET(request, { params }) {
         // Load active revisions
         // -------------------------------------------------
 
-        const revisionsResult = await pool.query(
+        const revisionsResult = await db.query(
             `
             SELECT
                 revision_id,
@@ -178,7 +180,7 @@ export async function GET(request, { params }) {
         // -------------------------------------------------
 
         for (const revision of revisionsResult.rows) {
-            const componentsResult = await pool.query(
+            const componentsResult = await db.query(
                 `
                 SELECT
                     bc.component_id,
@@ -229,7 +231,7 @@ export async function GET(request, { params }) {
 
                 if (warehouseId) {
                     if (subProductId) {
-                        const stockResult = await pool.query(
+                        const stockResult = await db.query(
                             `
                             SELECT COALESCE(quantity, 0) AS quantity
 
@@ -252,7 +254,7 @@ export async function GET(request, { params }) {
                             stockResult.rows[0]?.quantity || 0
                         );
                     } else if (productId) {
-                        const stockResult = await pool.query(
+                        const stockResult = await db.query(
                             `
                             SELECT COALESCE(quantity, 0) AS quantity
 

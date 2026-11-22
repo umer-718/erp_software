@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 
@@ -42,6 +42,10 @@ export async function PUT(request, { params }) {
     const denied = await authorize("update");
     if (denied) return denied;
 
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
     const { id } = await params;
     const categoryId = Number(id);
 
@@ -76,7 +80,7 @@ export async function PUT(request, { params }) {
       return jsonError("Invalid active status.", 400);
     }
 
-    const result = await pool.query(
+    const result = await db.query(
       `UPDATE product_categories
        SET
          category_name = $1,
@@ -118,6 +122,10 @@ export async function DELETE(request, { params }) {
     const denied = await authorize("delete");
     if (denied) return denied;
 
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
     const { id } = await params;
     const categoryId = Number(id);
 
@@ -125,7 +133,7 @@ export async function DELETE(request, { params }) {
       return jsonError("Invalid category ID.", 400);
     }
 
-    const result = await pool.query(
+    const result = await db.query(
       `DELETE FROM product_categories
        WHERE category_id = $1
        RETURNING category_id, category_name`,

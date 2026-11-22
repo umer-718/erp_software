@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 
@@ -55,7 +55,9 @@ export async function GET(request) {
       );
     }
 
-    const result = await pool.query(`
+    const db = await getTenantDb(access.user);
+
+    const result = await db.query(`
       SELECT
         warehouse_id,
         warehouse_code,
@@ -97,6 +99,8 @@ export async function POST(request) {
       );
     }
 
+    const db = await getTenantDb(access.user);
+
     const body = await request.json();
 
     const warehouseName = String(body.warehouseName ?? "").trim();
@@ -115,7 +119,7 @@ export async function POST(request) {
       );
     }
 
-    const result = await pool.query(
+    const result = await db.query(
       `
       INSERT INTO warehouses (
         warehouse_name,

@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import pool, { getOperationalPool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request, { params }) {
-    const client = await pool.connect();
+    let client;
 
     try {
         const user = await getCurrentUser();
@@ -18,7 +18,7 @@ export async function POST(request, { params }) {
             );
         }
 
-        const membership = await client.query(
+        const membership = await pool.query(
             `
             SELECT uc.company_id, uc.role_id
             FROM user_companies uc
@@ -50,6 +50,9 @@ export async function POST(request, { params }) {
             );
         }
 
+        const db = await getOperationalPool(companyId);
+        client = await db.connect();
+
         const { id } = await params;
         const quotationId = Number(id);
 
@@ -59,6 +62,11 @@ export async function POST(request, { params }) {
                 { status: 400 }
             );
         }
+
+        const companyResult = await pool.query(
+            `SELECT currency FROM companies WHERE company_id = $1`,
+            [companyId]
+        );
 
         await client.query("BEGIN");
 
@@ -152,11 +160,6 @@ export async function POST(request, { params }) {
 
         const orderId = Number(sequenceResult.rows[0].order_id);
         const orderNumber = `SO-${String(orderId).padStart(6, "0")}`;
-
-        const companyResult = await client.query(
-            `SELECT currency FROM companies WHERE company_id = $1`,
-            [companyId]
-        );
 
         await client.query(
             `
@@ -294,6 +297,6 @@ export async function POST(request, { params }) {
             { status: 500 }
         );
     } finally {
-        client.release();
+        client?.release();
     }
 }

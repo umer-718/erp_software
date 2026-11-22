@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export async function POST(request) {
-  const client = await pool.connect();
+  const tenant = await getTenantContext();
+  if (!tenant) return unauthorizedResponse();
+  const { db } = tenant;
+  const client = await db.connect();
 
   try {
     const body = await request.json();

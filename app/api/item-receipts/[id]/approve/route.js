@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -57,7 +57,7 @@ async function getReceiptId(context) {
 // ============================================================
 
 export async function POST(request, context) {
-    const client = await pool.connect();
+    let client;
 
     let transactionStarted = false;
 
@@ -91,6 +91,10 @@ export async function POST(request, context) {
                 { status: 400 }
             );
         }
+
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+        client = await db.connect();
 
         // ----------------------------------------------------
         // BEGIN TRANSACTION
@@ -873,6 +877,6 @@ export async function POST(request, context) {
         return apiError(error);
 
     } finally {
-        client.release();
+        client?.release();
     }
 }

@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission, hasPermission } from "@/lib/permissions";
 import {
@@ -163,8 +163,10 @@ export async function GET() {
 
         const companyId = positiveId(user.companyId, "Company");
 
+        const db = await getTenantDb(user);
+
         const [result, canCreate, canUpdate, canDelete] = await Promise.all([
-            pool.query(
+            db.query(
                 `
                 SELECT
                     b.bom_id,
@@ -253,7 +255,9 @@ export async function POST(request) {
 
         const data = prepareBomBody(body);
 
-        client = await pool.connect();
+        const db = await getTenantDb(user);
+
+        client = await db.connect();
         await client.query("BEGIN");
 
         await validateItems(client, data);

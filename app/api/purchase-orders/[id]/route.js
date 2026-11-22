@@ -1,6 +1,7 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
+import { getCompanyProfile } from "@/lib/tenant";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -314,9 +315,7 @@ async function getPurchaseOrder(client, id, companyId) {
             s.email AS supplier_email,
             s.address AS supplier_address,
 
-            pq.quotation_number,
-
-            c.company_name
+            pq.quotation_number
 
         FROM purchase_orders po
 
@@ -326,9 +325,6 @@ async function getPurchaseOrder(client, id, companyId) {
         LEFT JOIN purchase_quotations pq
             ON pq.purchase_quotation_id =
                po.purchase_quotation_id
-
-        LEFT JOIN companies c
-            ON c.company_id = po.company_id
 
         WHERE
             po.purchase_order_id = $1
@@ -394,8 +390,12 @@ async function getPurchaseOrder(client, id, companyId) {
         [id, companyId]
     );
 
+    // Company name comes from the central database.
+    const company = await getCompanyProfile(companyId);
+
     return {
         ...headerResult.rows[0],
+        company_name: company?.company_name ?? null,
         items: itemsResult.rows,
     };
 }
@@ -432,8 +432,11 @@ export async function GET(request, context) {
             "purchase order ID"
         );
 
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+
         const purchaseOrder = await getPurchaseOrder(
-            pool,
+            db,
             id,
             companyId
         );
@@ -515,7 +518,9 @@ export async function PATCH(request, context) {
             throw validationError("Invalid request body.");
         }
 
-        client = await pool.connect();
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+        client = await db.connect();
 
         await client.query("BEGIN");
         transactionStarted = true;
@@ -789,7 +794,7 @@ export async function PATCH(request, context) {
         transactionStarted = false;
 
         const updatedOrder = await getPurchaseOrder(
-            pool,
+            db,
             id,
             companyId
         );
@@ -854,7 +859,9 @@ export async function DELETE(request, context) {
             "purchase order ID"
         );
 
-        client = await pool.connect();
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+        client = await db.connect();
 
         await client.query("BEGIN");
         transactionStarted = true;

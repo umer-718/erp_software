@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -199,8 +199,10 @@ export async function GET(request, context) {
 
         const id = await getId(context);
 
+        const db = await getTenantDb(user);
+
         const record = await getCurrentRecord(
-            pool,
+            db,
             id,
             companyId
         );
@@ -212,7 +214,7 @@ export async function GET(request, context) {
             );
         }
 
-        const components = await getComponents(pool, id);
+        const components = await getComponents(db, id);
 
         return NextResponse.json({
             success: true,
@@ -258,7 +260,9 @@ export async function PATCH(request, context) {
         const id = await getId(context);
         const body = await request.json();
 
-        client = await pool.connect();
+        const db = await getTenantDb(user);
+
+        client = await db.connect();
 
         await client.query("BEGIN");
         transactionStarted = true;
@@ -501,7 +505,9 @@ export async function DELETE(request, context) {
 
         const id = await getId(context);
 
-        client = await pool.connect();
+        const db = await getTenantDb(user);
+
+        client = await db.connect();
 
         await client.query("BEGIN");
         transactionStarted = true;

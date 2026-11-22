@@ -102,9 +102,10 @@ export async function POST(request) {
 
     // 2. Validate input.
 
-    const username =
-      typeof body.username === "string"
-        ? body.username.trim()
+    // Users sign in with their email address.
+    const email =
+      typeof body.email === "string"
+        ? body.email.trim().toLowerCase()
         : "";
 
     const password = body.password;
@@ -117,8 +118,9 @@ export async function POST(request) {
         : Number(body.companyId);
 
     if (
-      !username ||
-      username.length > 150 ||
+      !email ||
+      email.length > 150 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
       typeof password !== "string" ||
       !password ||
       (companyId !== null &&
@@ -129,7 +131,7 @@ export async function POST(request) {
       return jsonResponse(
         {
           success: false,
-          message: "Enter a valid username and password.",
+          message: "Enter a valid email and password.",
         },
         400
       );
@@ -168,7 +170,7 @@ export async function POST(request) {
         INNER JOIN roles r
           ON r.role_id = uc.role_id
 
-        WHERE LOWER(u.username) = LOWER($1)
+        WHERE LOWER(u.email) = $1
 
           AND (
             $2::integer IS NULL
@@ -182,7 +184,7 @@ export async function POST(request) {
 
         ORDER BY uc.company_id
       `,
-      [username, companyId]
+      [email, companyId]
     );
 
     timings.membershipLookup =
@@ -236,7 +238,7 @@ export async function POST(request) {
       return jsonResponse(
         {
           success: false,
-          message: "Invalid username, password, or company access.",
+          message: "Invalid email, password, or company access.",
         },
         401
       );
@@ -326,6 +328,37 @@ const user = matchingUsers.find(
     ) {
       throw new Error(
         "Authenticated user is missing valid company or role information."
+      );
+    }
+
+    // 8b. The company's own database must be ready before login.
+
+    const companyDatabaseResult = await pool.query(
+      `
+        SELECT status
+        FROM company_databases
+        WHERE company_id = $1
+        LIMIT 1
+      `,
+      [finalCompanyId]
+    );
+
+    const companyDatabaseStatus =
+      companyDatabaseResult.rows[0]?.status || null;
+
+    if (companyDatabaseStatus !== "ACTIVE") {
+      responseStatus = 503;
+
+      return jsonResponse(
+        {
+          success: false,
+          code: "COMPANY_DATABASE_NOT_READY",
+          message:
+            companyDatabaseStatus === "PROVISIONING"
+              ? "This company's database is still being set up. Please try again shortly."
+              : "This company's database is not available. Please contact support.",
+        },
+        503
       );
     }
 

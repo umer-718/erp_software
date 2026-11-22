@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export async function GET(request) {
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
     const { searchParams } = new URL(request.url);
 
     const fromDate = searchParams.get("fromDate");
@@ -57,7 +60,7 @@ export async function GET(request) {
     // GET CUSTOMER
     // ---------------------------------------------------------
 
-    const customerResult = await pool.query(
+    const customerResult = await db.query(
       `
       SELECT
         customer_id,
@@ -90,7 +93,7 @@ export async function GET(request) {
     // - Previous Payments
     // ---------------------------------------------------------
 
-    const openingResult = await pool.query(
+    const openingResult = await db.query(
       `
       SELECT
         COALESCE(c.opening_balance, 0)
@@ -128,7 +131,7 @@ export async function GET(request) {
     // GET INVOICES
     // ---------------------------------------------------------
 
-    const invoiceResult = await pool.query(
+    const invoiceResult = await db.query(
       `
       SELECT
         invoice_id,
@@ -151,7 +154,7 @@ export async function GET(request) {
     // GET PAYMENTS
     // ---------------------------------------------------------
 
-    const paymentResult = await pool.query(
+    const paymentResult = await db.query(
       `
       SELECT
         payment_id,

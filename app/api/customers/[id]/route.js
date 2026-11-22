@@ -1,14 +1,19 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
 // Update an existing customer
 export async function PUT(request, { params }) {
-  const client = await pool.connect();
+  let client;
 
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+    client = await db.connect();
+
     const { id } = await params;
     const customerId = Number(id);
 
@@ -111,15 +116,20 @@ export async function PUT(request, { params }) {
       { status: 500 }
     );
   } finally {
-    client.release();
+    client?.release();
   }
 }
 
 // Delete an existing customer
 export async function DELETE(request, { params }) {
-  const client = await pool.connect();
+  let client;
 
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+    client = await db.connect();
+
     const { id } = await params;
     const customerId = Number(id);
 
@@ -180,6 +190,6 @@ export async function DELETE(request, { params }) {
       { status: 500 }
     );
   } finally {
-    client.release();
+    client?.release();
   }
 }

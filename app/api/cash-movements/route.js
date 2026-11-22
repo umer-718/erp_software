@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,10 @@ const validTypes = ["RECEIPT", "PAYMENT"];
 // counter accounts for the Cash In / Cash Out form.
 export async function GET() {
   try {
-    const result = await pool.query(`
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+    const result = await db.query(`
       SELECT
         account_id,
         account_code,
@@ -51,9 +54,13 @@ export async function GET() {
 
 // Create a Cash In (RECEIPT) or Cash Out (PAYMENT) journal entry.
 export async function POST(request) {
-  const client = await pool.connect();
+  let client;
 
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+    client = await db.connect();
     const body = await request.json();
 
     const {
@@ -294,7 +301,7 @@ export async function POST(request) {
       { status: 201 }
     );
   } catch (error) {
-    await client.query("ROLLBACK");
+    await client?.query("ROLLBACK");
 
     console.error("Cash movement error:", error);
 
@@ -303,6 +310,6 @@ export async function POST(request) {
       { status: 500 }
     );
   } finally {
-    client.release();
+    client?.release();
   }
 }

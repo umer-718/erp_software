@@ -1,10 +1,14 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export async function GET() {
   try {
-    const result = await pool.query(`
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
+    const result = await db.query(`
       SELECT
         c.customer_id,
         c.customer_code,
@@ -68,6 +72,10 @@ export async function GET() {
 
 export async function POST(request) {
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
     const body = await request.json();
 
     const {
@@ -102,7 +110,7 @@ export async function POST(request) {
       );
     }
 
-    const result = await pool.query(
+    const result = await db.query(
       `
       INSERT INTO customers (
         customer_code,

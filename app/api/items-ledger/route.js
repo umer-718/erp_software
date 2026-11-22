@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -43,6 +43,8 @@ export async function GET(request) {
         // --------------------------------------------------
 
         await requirePermission(user, "items_ledger", "view");
+
+        const db = await getTenantDb(user);
 
         // --------------------------------------------------
         // REQUEST PARAMETERS
@@ -113,7 +115,7 @@ export async function GET(request) {
         // PRODUCT
         // --------------------------------------------------
 
-        const productResult = await pool.query(
+        const productResult = await db.query(
             `
             SELECT
                 product_id,
@@ -190,7 +192,7 @@ export async function GET(request) {
                 inventory_transaction_id ASC
         `;
 
-        const transactionsResult = await pool.query(
+        const transactionsResult = await db.query(
             transactionQuery,
             transactionParams
         );
@@ -227,7 +229,7 @@ export async function GET(request) {
             openingParams.push(location);
         }
 
-        const openingResult = await pool.query(
+        const openingResult = await db.query(
             openingQuery,
             openingParams
         );

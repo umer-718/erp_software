@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 import { parseIntegerQuantity } from "@/lib/quantity";
 
 import {
@@ -27,7 +27,11 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const result = await pool.query(`
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
+    const result = await db.query(`
       SELECT
         si.invoice_id,
         si.invoice_number,
@@ -101,7 +105,10 @@ export async function POST(request) {
   let transactionStarted = false;
 
   try {
-    client = await pool.connect();
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+    client = await db.connect();
 
     const body = await request.json();
 

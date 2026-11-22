@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import pool, { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 
@@ -180,12 +180,12 @@ async function getProductPermissions(roleId) {
   };
 }
 
-async function runTimedQuery(label, sql) {
+async function runTimedQuery(label, sql, db) {
   const acquireStartedAt = performance.now();
   let client;
 
   try {
-    client = await pool.connect();
+    client = await db.connect();
 
     const acquireMs = Math.round(
       performance.now() - acquireStartedAt
@@ -417,6 +417,8 @@ export async function GET() {
       return authorization.denied;
     }
 
+    const db = await getTenantDb(authorization.user);
+
     logPoolStats("Pool before queries");
 
     const dbStartedAt = performance.now();
@@ -476,8 +478,8 @@ export async function GET() {
       subProductsResult,
       permissions,
     ] = await Promise.all([
-      runTimedQuery("Products query", productsSQL),
-      runTimedQuery("Sub-products query", subProductsSQL),
+      runTimedQuery("Products query", productsSQL, db),
+      runTimedQuery("Sub-products query", subProductsSQL, db),
       getProductPermissions(authorization.roleId),
     ]);
 
@@ -565,6 +567,8 @@ export async function POST(request) {
       return authorization.denied;
     }
 
+    const db = await getTenantDb(authorization.user);
+
     let body;
 
     try {
@@ -579,7 +583,7 @@ export async function POST(request) {
       return jsonError(normalized.error, 400);
     }
 
-    const result = await pool.query(
+    const result = await db.query(
       `
       INSERT INTO products (
         sku,
@@ -675,6 +679,8 @@ export async function PUT(request) {
       return authorization.denied;
     }
 
+    const db = await getTenantDb(authorization.user);
+
     let body;
 
     try {
@@ -699,7 +705,7 @@ export async function PUT(request) {
 
     const values = normalized.values;
 
-    const result = await pool.query(
+    const result = await db.query(
       `
       UPDATE products
       SET
@@ -795,6 +801,8 @@ export async function DELETE(request) {
       return authorization.denied;
     }
 
+    const db = await getTenantDb(authorization.user);
+
     const { searchParams } = new URL(request.url);
 
     const productId = Number(searchParams.get("id"));
@@ -806,7 +814,7 @@ export async function DELETE(request) {
       );
     }
 
-    const result = await pool.query(
+    const result = await db.query(
       `
       DELETE FROM products
       WHERE product_id = $1

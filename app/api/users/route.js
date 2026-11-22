@@ -262,8 +262,9 @@ export async function POST(request) {
             !fullName ||
             fullName.length > 150 ||
             !/^[a-zA-Z0-9_.-]{3,100}$/.test(username) ||
-            (email &&
-                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) ||
+            // Email is required: it is the login name.
+            !email ||
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
             location.length > 255 ||
             typeof password !== "string" ||
             password.length < 8 ||

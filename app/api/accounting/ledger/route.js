@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export async function GET(request) {
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
     const { searchParams } = new URL(request.url);
 
     const from = searchParams.get("from") || "";
@@ -36,7 +39,7 @@ export async function GET(request) {
       );
     }
 
-    const accountsResult = await pool.query(`
+    const accountsResult = await db.query(`
       SELECT
         account_id,
         account_code,
@@ -51,7 +54,7 @@ export async function GET(request) {
       ORDER BY account_code
     `);
 
-    const result = await pool.query(
+    const result = await db.query(
       `
       WITH all_posted_lines AS (
         SELECT

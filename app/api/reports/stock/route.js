@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export async function GET() {
   try {
-    const result = await pool.query(`
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+    const result = await db.query(`
       SELECT
         s.stock_id,
         p.product_id,
@@ -43,7 +46,7 @@ export async function GET() {
         w.warehouse_name
     `);
 
-    const summary = await pool.query(`
+    const summary = await db.query(`
       SELECT
         COUNT(DISTINCT product_id)::int AS product_count,
         COALESCE(SUM(quantity), 0) AS total_quantity

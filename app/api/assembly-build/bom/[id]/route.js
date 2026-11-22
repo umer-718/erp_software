@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 import {
@@ -40,8 +40,10 @@ export async function GET(request, context) {
             ? positiveId(warehouseValue, "Warehouse")
             : null;
 
+        const db = await getTenantDb(user);
+
         if (warehouseId) {
-            const warehouseResult = await pool.query(
+            const warehouseResult = await db.query(
                 `
                 SELECT warehouse_id, warehouse_name
                 FROM warehouses
@@ -59,7 +61,7 @@ export async function GET(request, context) {
         // -------------------------------------------------
         // LOAD COMPANY-SPECIFIC BOM
         // -------------------------------------------------
-        const bomResult = await pool.query(
+        const bomResult = await db.query(
             `
             SELECT
                 b.bom_id,
@@ -103,7 +105,7 @@ export async function GET(request, context) {
         // -------------------------------------------------
         // LOAD ACTIVE REVISIONS
         // -------------------------------------------------
-        const revisionsResult = await pool.query(
+        const revisionsResult = await db.query(
             `
             SELECT
                 revision_id,
@@ -126,7 +128,7 @@ export async function GET(request, context) {
             // ---------------------------------------------
             // LOAD REVISION COMPONENTS
             // ---------------------------------------------
-            const componentsResult = await pool.query(
+            const componentsResult = await db.query(
                 `
                 SELECT
                     c.component_id,
@@ -174,7 +176,7 @@ export async function GET(request, context) {
                 if (warehouseId && component.product_id) {
                     // Parent product balance.
                     // Only read stock belonging to this company.
-                    const stockResult = await pool.query(
+                    const stockResult = await db.query(
                         `
                         SELECT COALESCE(quantity, 0) AS quantity
                         FROM stock
@@ -195,7 +197,7 @@ export async function GET(request, context) {
                     );
                 } else if (warehouseId && component.sub_product_id) {
                     // Sub-product balance is company-specific.
-                    const stockResult = await pool.query(
+                    const stockResult = await db.query(
                         `
                         SELECT COALESCE(quantity, 0) AS quantity
                         FROM sub_product_stock
@@ -237,7 +239,7 @@ export async function GET(request, context) {
             let process = null;
 
             if (revision.has_process) {
-                const processResult = await pool.query(
+                const processResult = await db.query(
                     `
                     SELECT
                         process_id,
@@ -256,7 +258,7 @@ export async function GET(request, context) {
                 if (processResult.rowCount) {
                     const processHeader = processResult.rows[0];
 
-                    const stepsResult = await pool.query(
+                    const stepsResult = await db.query(
                         `
                         SELECT
                             process_step_id,

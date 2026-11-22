@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 import {
@@ -305,7 +305,9 @@ export async function GET(request, context) {
         const bomId = await getRouteId(context);
         const companyId = positiveId(user.companyId, "Company");
 
-        const result = await loadBom(pool, bomId, companyId);
+        const db = await getTenantDb(user);
+
+        const result = await loadBom(db, bomId, companyId);
 
         return NextResponse.json(
             { success: true, bom: result },
@@ -337,7 +339,9 @@ export async function PUT(request, context) {
 
         const data = prepareBomBody(body);
 
-        client = await pool.connect();
+        const db = await getTenantDb(user);
+
+        client = await db.connect();
         await client.query("BEGIN");
 
         const existingBom = await client.query(
@@ -520,7 +524,9 @@ export async function DELETE(request, context) {
         const bomId = await getRouteId(context);
         const companyId = positiveId(user.companyId, "Company");
 
-        const result = await pool.query(
+        const db = await getTenantDb(user);
+
+        const result = await db.query(
             `
             DELETE FROM bill_of_materials
             WHERE bom_id = $1

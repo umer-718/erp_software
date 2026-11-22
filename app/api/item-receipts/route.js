@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import pool, { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -82,6 +82,9 @@ export async function GET() {
             "view"
         );
 
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+
         const companyId = positiveId(user.companyId);
 
         if (!companyId) {
@@ -103,7 +106,7 @@ export async function GET() {
             // 1. ITEM RECEIPTS
             // ------------------------------------------------
 
-            pool.query(
+            db.query(
     `
     SELECT
         ir.*,
@@ -154,7 +157,7 @@ export async function GET() {
             // Suppliers are shared in the current schema.
             // ------------------------------------------------
 
-            pool.query(
+            db.query(
                 `
                 SELECT
                     supplier_id,
@@ -177,7 +180,7 @@ export async function GET() {
             // Warehouses are shared in the current schema.
             // ------------------------------------------------
 
-            pool.query(
+            db.query(
                 `
                 SELECT
                     warehouse_id,
@@ -199,7 +202,7 @@ export async function GET() {
             // There is no po.currency column.
             // ------------------------------------------------
 
-            pool.query(
+            db.query(
                 `
                 SELECT
                     po.purchase_order_id,
@@ -231,7 +234,7 @@ export async function GET() {
             // 5. PENDING ITEM RECEIPTS
             // ------------------------------------------------
 
-            pool.query(
+            db.query(
                 `
                 SELECT
                     pir.pending_item_receipt_id,
@@ -289,7 +292,7 @@ export async function GET() {
 // ============================================================
 
 export async function POST(request) {
-    const client = await pool.connect();
+    let client;
 
     let transactionStarted = false;
 
@@ -525,6 +528,27 @@ export async function POST(request) {
         }
 
         // ----------------------------------------------------
+        // VALIDATE COMPANY (central database)
+        // ----------------------------------------------------
+
+        const companyResult = await pool.query(
+            `
+            SELECT company_id
+            FROM companies
+            WHERE company_id = $1
+            `,
+            [companyId]
+        );
+
+        if (companyResult.rows.length === 0) {
+            throw new Error("Company not found.");
+        }
+
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+        client = await db.connect();
+
+        // ----------------------------------------------------
         // START DATABASE TRANSACTION
         // ----------------------------------------------------
 
@@ -533,21 +557,13 @@ export async function POST(request) {
 
         // ----------------------------------------------------
         // LOCK COMPANY FOR RECEIPT NUMBER GENERATION
+        // (advisory lock replaces the old companies row lock)
         // ----------------------------------------------------
 
-        const companyResult = await client.query(
-            `
-            SELECT company_id
-            FROM companies
-            WHERE company_id = $1
-            FOR UPDATE
-            `,
-            [companyId]
+        await client.query(
+            "SELECT pg_advisory_xact_lock($1::integer, $2::integer)",
+            [companyId, 741207]
         );
-
-        if (companyResult.rows.length === 0) {
-            throw new Error("Company not found.");
-        }
 
         // ----------------------------------------------------
         // VALIDATE SUPPLIER
@@ -1167,6 +1183,6 @@ export async function POST(request) {
         return apiError(error);
 
     } finally {
-        client.release();
+        client?.release();
     }
 }

@@ -1,9 +1,13 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export async function GET(request) {
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
     const { searchParams } = new URL(request.url);
     const productId = searchParams.get("productId");
     const warehouseId = searchParams.get("warehouseId");
@@ -31,7 +35,7 @@ export async function GET(request) {
       ? `WHERE ${conditions.join(" AND ")}`
       : "";
 
-    const result = await pool.query(
+    const result = await db.query(
       `
       SELECT
         pu.unit_id,
@@ -71,7 +75,10 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const client = await pool.connect();
+  const tenant = await getTenantContext();
+  if (!tenant) return unauthorizedResponse();
+  const { db } = tenant;
+  const client = await db.connect();
 
   try {
     const body = await request.json();

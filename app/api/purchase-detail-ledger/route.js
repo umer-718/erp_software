@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -45,6 +45,9 @@ export async function GET(request) {
         // 2. Permission check
         await requirePermission(user, PERMISSION, "view");
 
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+
         // 3. Read filters
         const { searchParams } = new URL(request.url);
 
@@ -70,7 +73,7 @@ export async function GET(request) {
         // 4. Load suppliers belonging to this company's purchase records.
         // suppliers does not have a company_id column, so scope it through
         // the company's purchases table.
-        const suppliersResult = await pool.query(
+        const suppliersResult = await db.query(
             `
             SELECT
                 s.supplier_id,
@@ -102,7 +105,7 @@ export async function GET(request) {
         }
 
         // 5. Verify that the selected supplier belongs to this company.
-        const supplierResult = await pool.query(
+        const supplierResult = await db.query(
             `
             SELECT
                 s.supplier_id,
@@ -139,7 +142,7 @@ export async function GET(request) {
         // - payments before From Date
         //
         // Only APPROVED purchase invoices affect the ledger.
-        const openingResult = await pool.query(
+        const openingResult = await db.query(
             `
             SELECT
                 COALESCE((
@@ -193,7 +196,7 @@ export async function GET(request) {
         // Payments are company-scoped through their linked purchases record.
         
         // 7. Load approved invoices and payments with their complete details.
-        const transactionsResult = await pool.query(
+        const transactionsResult = await db.query(
             `
             SELECT *
             FROM (

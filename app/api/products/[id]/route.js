@@ -201,7 +201,7 @@
 
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 
@@ -211,6 +211,10 @@ function normalizeBarcode(value) {
 
 export async function PUT(request, { params }) {
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
     const { id } = await params;
     const productId = Number(id);
 
@@ -268,7 +272,7 @@ export async function PUT(request, { params }) {
       );
     }
 
-    const result = await pool.query(
+    const result = await db.query(
       `
       UPDATE products SET
         sku = $1,
@@ -384,6 +388,10 @@ export async function PUT(request, { params }) {
 
 export async function DELETE(request, { params }) {
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
     const { id } = await params;
     const productId = Number(id);
 
@@ -394,7 +402,7 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    const result = await pool.query(
+    const result = await db.query(
       `
       DELETE FROM products
       WHERE product_id = $1

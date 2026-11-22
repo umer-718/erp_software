@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -371,9 +371,12 @@ export async function GET() {
             "company"
         );
 
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+
         const [ordersResult, suppliersResult, quotationsResult] =
             await Promise.all([
-                pool.query(
+                db.query(
                     `
                     SELECT
                         po.*,
@@ -414,7 +417,7 @@ export async function GET() {
                     [companyId]
                 ),
 
-                pool.query(
+                db.query(
                     `
                     SELECT
                         supplier_id,
@@ -432,7 +435,7 @@ export async function GET() {
                     `
                 ),
 
-                pool.query(
+                db.query(
                     `
                     SELECT
                         pq.purchase_quotation_id,
@@ -573,7 +576,9 @@ export async function POST(request) {
 
         const status = validStatus(body.status, "DRAFT");
 
-        client = await pool.connect();
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+        client = await db.connect();
 
         await client.query("BEGIN");
         transactionStarted = true;

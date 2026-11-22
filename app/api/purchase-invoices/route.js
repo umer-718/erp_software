@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -459,6 +459,9 @@ export async function GET(request) {
     try {
         const user = await getAuthorizedUser("view");
 
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+
         const { searchParams } = new URL(request.url);
 
         const purchaseId = positiveId(
@@ -466,7 +469,7 @@ export async function GET(request) {
         );
 
         if (purchaseId) {
-            const result = await pool.query(
+            const result = await db.query(
                 `
                 SELECT
                     p.*,
@@ -494,7 +497,7 @@ export async function GET(request) {
                 );
             }
 
-            const itemsResult = await pool.query(
+            const itemsResult = await db.query(
                 `
                 SELECT
                     pi.*,
@@ -515,7 +518,7 @@ export async function GET(request) {
             });
         }
 
-        const result = await pool.query(
+        const result = await db.query(
             `
             SELECT
                 p.*,
@@ -549,7 +552,7 @@ export async function GET(request) {
 // ============================================================
 
 export async function POST(request) {
-    const client = await pool.connect();
+    let client;
 
     try {
         const user = await getAuthorizedUser("create");
@@ -617,6 +620,10 @@ export async function POST(request) {
                 "Invoice lines do not match the selected source type."
             );
         }
+
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+        client = await db.connect();
 
         await client.query("BEGIN");
 
@@ -718,10 +725,10 @@ export async function POST(request) {
             { status: 201 }
         );
     } catch (error) {
-        await client.query("ROLLBACK").catch(() => {});
+        await client?.query("ROLLBACK").catch(() => {});
         return errorResponse(error);
     } finally {
-        client.release();
+        client?.release();
     }
 }
 
@@ -730,7 +737,7 @@ export async function POST(request) {
 // ============================================================
 
 export async function PUT(request) {
-    const client = await pool.connect();
+    let client;
 
     try {
         const user = await getAuthorizedUser("update");
@@ -806,6 +813,10 @@ export async function PUT(request) {
                 "Invoice lines do not match the selected source type."
             );
         }
+
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+        client = await db.connect();
 
         await client.query("BEGIN");
 
@@ -928,10 +939,10 @@ export async function PUT(request) {
             items,
         });
     } catch (error) {
-        await client.query("ROLLBACK").catch(() => {});
+        await client?.query("ROLLBACK").catch(() => {});
         return errorResponse(error);
     } finally {
-        client.release();
+        client?.release();
     }
 }
 
@@ -940,7 +951,7 @@ export async function PUT(request) {
 // ============================================================
 
 export async function DELETE(request) {
-    const client = await pool.connect();
+    let client;
 
     try {
         const user = await getAuthorizedUser("delete");
@@ -954,6 +965,10 @@ export async function DELETE(request) {
         if (!purchaseId) {
             throw new Error("Invalid Purchase Invoice ID.");
         }
+
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+        client = await db.connect();
 
         await client.query("BEGIN");
 
@@ -1003,9 +1018,9 @@ export async function DELETE(request) {
             message: "Purchase Invoice draft deleted successfully.",
         });
     } catch (error) {
-        await client.query("ROLLBACK").catch(() => {});
+        await client?.query("ROLLBACK").catch(() => {});
         return errorResponse(error);
     } finally {
-        client.release();
+        client?.release();
     }
 }

@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
@@ -22,12 +22,16 @@ function errorResponse(message, status = 500) {
 // =====================================================
 export async function GET(request) {
     try {
+        const tenant = await getTenantContext();
+        if (!tenant) return unauthorizedResponse();
+        const { db } = tenant;
+
         const { searchParams } = new URL(request.url);
         const paymentId = searchParams.get("id");
 
         // Load one payment when an ID is supplied
         if (paymentId) {
-            const result = await pool.query(
+            const result = await db.query(
                 `
                 SELECT
                     pp.payment_id,
@@ -75,7 +79,7 @@ export async function GET(request) {
         }
 
         // Existing behavior: load all payments
-        const result = await pool.query(`
+        const result = await db.query(`
             SELECT
                 pp.payment_id,
                 pp.payment_number,
@@ -120,6 +124,10 @@ export async function POST(request) {
     let client;
 
     try {
+        const tenant = await getTenantContext();
+        if (!tenant) return unauthorizedResponse();
+        const { db } = tenant;
+
         const body = await request.json();
 
         const {
@@ -151,7 +159,7 @@ export async function POST(request) {
             );
         }
 
-        client = await pool.connect();
+        client = await db.connect();
 
         await client.query("BEGIN");
 
@@ -291,6 +299,10 @@ export async function PUT(request) {
     let client;
 
     try {
+        const tenant = await getTenantContext();
+        if (!tenant) return unauthorizedResponse();
+        const { db } = tenant;
+
         const body = await request.json();
 
         // Accept common ID field names used by edit forms.
@@ -344,7 +356,7 @@ export async function PUT(request) {
             );
         }
 
-        client = await pool.connect();
+        client = await db.connect();
 
         await client.query("BEGIN");
 

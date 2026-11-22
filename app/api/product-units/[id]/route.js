@@ -1,9 +1,13 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export async function PUT(request, { params }) {
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
     const { id } = await params;
     const body = await request.json();
 
@@ -22,7 +26,7 @@ export async function PUT(request, { params }) {
       );
     }
 
-    const result = await pool.query(
+    const result = await db.query(
       `
       UPDATE product_units
       SET unit_name = $1,
@@ -65,7 +69,10 @@ export async function PUT(request, { params }) {
 }
 
 export async function DELETE(request, { params }) {
-  const client = await pool.connect();
+  const tenant = await getTenantContext();
+  if (!tenant) return unauthorizedResponse();
+  const { db } = tenant;
+  const client = await db.connect();
 
   try {
     const { id } = await params;

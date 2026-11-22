@@ -1,6 +1,7 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
+import { attachUserNames } from "@/lib/tenant";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -40,6 +41,9 @@ export async function GET(request) {
             );
         }
 
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+
         const { searchParams } = new URL(request.url);
         const id = searchParams.get("id");
 
@@ -50,20 +54,14 @@ export async function GET(request) {
          * Original records must remain accessible for audit/history.
          */
         if (id) {
-            const result = await pool.query(
+            const result = await db.query(
                 `SELECT
                     pr.*,
                     w.warehouse_name,
-                    w.warehouse_code,
-                    creator.full_name AS created_by_name,
-                    updater.full_name AS updated_by_name
+                    w.warehouse_code
                  FROM purchase_requisitions pr
                  LEFT JOIN warehouses w
                     ON w.warehouse_id = pr.warehouse_id
-                 LEFT JOIN users creator
-                    ON creator.user_id = pr.created_by
-                 LEFT JOIN users updater
-                    ON updater.user_id = pr.updated_by
                  WHERE pr.requisition_id = $1
                    AND pr.company_id = $2`,
                 [id, user.companyId]
@@ -81,8 +79,14 @@ export async function GET(request) {
 
             const requisition = result.rows[0];
 
+            // User names come from the central database.
+            await attachUserNames(requisition, {
+                created_by: "created_by_name",
+                updated_by: "updated_by_name",
+            });
+
             const [items, related, attachments] = await Promise.all([
-                pool.query(
+                db.query(
                     `SELECT
                         ri.*,
                         p.sku,
@@ -95,7 +99,7 @@ export async function GET(request) {
                     [id]
                 ),
 
-                pool.query(
+                db.query(
                     `SELECT *
                      FROM purchase_requisition_related_transactions
                      WHERE requisition_id = $1
@@ -103,7 +107,7 @@ export async function GET(request) {
                     [id]
                 ),
 
-                pool.query(
+                db.query(
                     `SELECT *
                      FROM purchase_requisition_attachments
                      WHERE requisition_id = $1
@@ -134,7 +138,7 @@ export async function GET(request) {
          *
          * Requisitions without items are also kept visible.
          */
-        const result = await pool.query(
+        const result = await db.query(
             `WITH item_summary AS (
                 SELECT
                     ri.requisition_id,
@@ -177,8 +181,6 @@ export async function GET(request) {
 
                 w.warehouse_name,
                 w.warehouse_code,
-
-                creator.full_name AS created_by_name,
 
                 COALESCE(
                     item_summary.total_item_count,
@@ -231,9 +233,6 @@ export async function GET(request) {
             LEFT JOIN warehouses w
                 ON w.warehouse_id = pr.warehouse_id
 
-            LEFT JOIN users creator
-                ON creator.user_id = pr.created_by
-
             LEFT JOIN item_summary
                 ON item_summary.requisition_id =
                     pr.requisition_id
@@ -252,6 +251,11 @@ export async function GET(request) {
                 pr.requisition_id DESC`,
             [user.companyId]
         );
+
+        // User names come from the central database.
+        await attachUserNames(result.rows, {
+            created_by: "created_by_name",
+        });
 
         return NextResponse.json({
             success: true,
@@ -362,7 +366,9 @@ export async function POST(request) {
             }
         }
 
-        client = await pool.connect();
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+        client = await db.connect();
 
         await client.query("BEGIN");
         transactionStarted = true;

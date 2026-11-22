@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import pool, { getOperationalPool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 
@@ -181,10 +181,11 @@ export async function GET() {
     try {
         const context = await getOrderContext();
         await checkPermission(context, "view");
+        const db = await getOperationalPool(context.companyId);
 
         const [ordersResult, customersResult, productsResult, warehousesResult, companyResult] =
             await Promise.all([
-                pool.query(
+                db.query(
                     `
                     SELECT
                         so.order_id,
@@ -225,7 +226,7 @@ export async function GET() {
                     `,
                     [context.companyId]
                 ),
-                pool.query(
+                db.query(
                     `
                     SELECT customer_id, customer_code, customer_name,
                            phone, email, address, credit_limit, opening_balance
@@ -234,7 +235,7 @@ export async function GET() {
                     ORDER BY customer_name
                     `
                 ),
-                pool.query(
+                db.query(
                     `
                     SELECT product_id, sku, product_name, description,
                            unit, sales_unit, sale_price, minimum_stock,
@@ -244,7 +245,7 @@ export async function GET() {
                     ORDER BY product_name
                     `
                 ),
-                pool.query(
+                db.query(
                     `
                     SELECT warehouse_id, warehouse_code, warehouse_name, location
                     FROM warehouses
@@ -283,11 +284,13 @@ export async function GET() {
 
 // POST /api/sales-orders
 export async function POST(request) {
-    const client = await pool.connect();
+    let client;
 
     try {
         const context = await getOrderContext();
         await checkPermission(context, "create");
+        const db = await getOperationalPool(context.companyId);
+        client = await db.connect();
 
         const body = await request.json();
         const itemsResult = calculateItems(body.items);
@@ -333,6 +336,11 @@ export async function POST(request) {
             );
         }
 
+        const company = await pool.query(
+            `SELECT currency FROM companies WHERE company_id = $1`,
+            [context.companyId]
+        );
+
         await client.query("BEGIN");
 
         const customer = await client.query(
@@ -370,11 +378,6 @@ export async function POST(request) {
                 { status: 400 }
             );
         }
-
-        const company = await client.query(
-            `SELECT currency FROM companies WHERE company_id = $1`,
-            [context.companyId]
-        );
 
         const currency = String(
             body.currency || company.rows[0]?.currency || "PKR"
@@ -581,6 +584,6 @@ export async function POST(request) {
 
         return errorResponse(error, "Could not save the Sales Order.");
     } finally {
-        client.release();
+        client?.release();
     }
 }

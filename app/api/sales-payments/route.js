@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
@@ -344,13 +344,17 @@ async function recalculateInvoice(db, invoiceId) {
 /* GET payments and eligible Cash/Bank accounts. */
 export async function GET(request) {
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
     const { searchParams } = new URL(request.url);
     const paymentId = searchParams.get("paymentId");
 
-    const accounts = await getCashBankAccounts(pool);
+    const accounts = await getCashBankAccounts(db);
 
     if (paymentId) {
-      const payment = await getPayment(pool, paymentId);
+      const payment = await getPayment(db, paymentId);
 
       if (!payment) {
         return NextResponse.json(
@@ -366,7 +370,7 @@ export async function GET(request) {
       });
     }
 
-    const result = await pool.query(`
+    const result = await db.query(`
       SELECT
         sp.payment_id,
         sp.payment_number,
@@ -415,10 +419,15 @@ export async function GET(request) {
 
 /* POST: Create a sales payment and accounting journal. */
 export async function POST(request) {
-  const client = await pool.connect();
+  let client;
   let transactionStarted = false;
 
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+    client = await db.connect();
+
     const body = await request.json();
 
     const {
@@ -555,7 +564,7 @@ export async function POST(request) {
       {
         success: true,
         message: "Sales payment recorded successfully.",
-        payment: await getPayment(pool, paymentId),
+        payment: await getPayment(db, paymentId),
       },
       { status: 201 }
     );
@@ -574,16 +583,21 @@ export async function POST(request) {
       { status: error.code === "23505" ? 409 : 400 }
     );
   } finally {
-    client.release();
+    client?.release();
   }
 }
 
 /* PUT: Edit a payment and replace its accounting posting. */
 export async function PUT(request) {
-  const client = await pool.connect();
+  let client;
   let transactionStarted = false;
 
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+    client = await db.connect();
+
     const body = await request.json();
 
     const {
@@ -754,7 +768,7 @@ export async function PUT(request) {
     return NextResponse.json({
       success: true,
       message: "Sales payment updated successfully.",
-      payment: await getPayment(pool, paymentId),
+      payment: await getPayment(db, paymentId),
     });
   } catch (error) {
     if (transactionStarted) {
@@ -771,6 +785,6 @@ export async function PUT(request) {
       { status: error.code === "23505" ? 409 : 400 }
     );
   } finally {
-    client.release();
+    client?.release();
   }
 }

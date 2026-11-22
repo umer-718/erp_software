@@ -17,7 +17,7 @@ function LoginForm() {
   const initialCompanyName =
     searchParams.get("companyName") || "Administrator Login";
 
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
   const [companies, setCompanies] = useState([]);
@@ -37,8 +37,8 @@ function LoginForm() {
 
     setError("");
 
-    if (!username.trim() || !password) {
-      setError("Please enter your username and password.");
+    if (!email.trim() || !password) {
+      setError("Please enter your email and password.");
       return;
     }
 
@@ -58,7 +58,7 @@ function LoginForm() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          username: username.trim(),
+          email: email.trim().toLowerCase(),
           password,
           companyId: selectedCompanyId || undefined,
         }),
@@ -204,19 +204,19 @@ if (
         <form onSubmit={handleLogin} className="space-y-5">
           <div>
             <label
-              htmlFor="username"
+              htmlFor="email"
               className="mb-2 block text-sm font-medium text-slate-700"
             >
-              Username
+              Email
             </label>
 
             <input
-              id="username"
-              type="text"
-              autoComplete="username"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              placeholder="Enter username"
+              id="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@company.com"
               className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-slate-600 focus:ring-2 focus:ring-slate-200"
               required
             />
@@ -293,7 +293,13 @@ if (
         </form>
 
         <div className="mt-6 text-center text-sm text-slate-500">
-          Secure Company Login
+          New company?{" "}
+          <Link
+            href="/companies/register"
+            className="font-medium text-blue-700 hover:underline"
+          >
+            Register your company
+          </Link>
         </div>
 
         {/* <div className="mt-4 text-center">

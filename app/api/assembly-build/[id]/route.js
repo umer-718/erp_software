@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -260,7 +260,9 @@ export async function GET(request, { params }) {
         const companyId = positiveId(user.companyId, "Company");
         const buildId = await getBuildId(params);
 
-        client = await pool.connect();
+        const db = await getTenantDb(user);
+
+        client = await db.connect();
 
         const build = await getBuild(
             client,
@@ -431,7 +433,9 @@ export async function PUT(request, { params }) {
             throw new Error("At least one BOM component is required.");
         }
 
-        client = await pool.connect();
+        const db = await getTenantDb(user);
+
+        client = await db.connect();
 
         await client.query("BEGIN");
         transactionStarted = true;
@@ -1047,7 +1051,9 @@ export async function DELETE(request, { params }) {
         const companyId = positiveId(user.companyId, "Company");
         const buildId = await getBuildId(params);
 
-        client = await pool.connect();
+        const db = await getTenantDb(user);
+
+        client = await db.connect();
 
         await client.query("BEGIN");
         transactionStarted = true;

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -216,7 +216,10 @@ export async function GET(request, context) {
 
         const rfqId = await getRfqId(context);
 
-        const rfqResult = await pool.query(
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+
+        const rfqResult = await db.query(
             `
             SELECT
                 rfq_id,
@@ -242,7 +245,7 @@ export async function GET(request, context) {
         const [itemsResult, vendorsResult, quotesResult] =
             await Promise.all([
                 /* RFQ items */
-                pool.query(
+                db.query(
                     `
                     SELECT
                         i.rfq_item_id,
@@ -272,7 +275,7 @@ export async function GET(request, context) {
                 ),
 
                 /* Invited suppliers */
-                pool.query(
+                db.query(
                     `
                     SELECT
                         v.rfq_vendor_id,
@@ -303,7 +306,7 @@ export async function GET(request, context) {
                 ),
 
                 /* All quotation lines */
-                pool.query(
+                db.query(
                     `
                     SELECT
                         q.rfq_vendor_quote_id,
@@ -483,7 +486,9 @@ export async function POST(request, context) {
             "response date"
         );
 
-        client = await pool.connect();
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+        client = await db.connect();
 
         await client.query("BEGIN");
         transactionStarted = true;

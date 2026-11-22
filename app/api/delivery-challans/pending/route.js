@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import pool, { getOperationalPool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 
@@ -49,6 +49,8 @@ export async function GET(request) {
             );
         }
 
+        const db = await getOperationalPool(companyId);
+
         const { searchParams } = new URL(request.url);
         const type = String(searchParams.get("type") || "SALES_ORDER").toUpperCase();
         const entity = String(searchParams.get("entity") || "").trim();
@@ -64,7 +66,7 @@ export async function GET(request) {
             );
         }
 
-        const result = await pool.query(
+        const result = await db.query(
             `
             SELECT
                 soi.order_item_id,

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 
@@ -93,11 +93,13 @@ export async function GET() {
 
     if (authorization.response) return authorization.response;
 
+    const db = await getTenantDb(authorization.user);
+
     const roleId =
       authorization.user.roleId ?? authorization.user.role_id;
 
     const [result, canCreate, canUpdate, canDelete] = await Promise.all([
-      pool.query(`
+      db.query(`
         SELECT
           unit_id,
           unit_code,
@@ -142,6 +144,8 @@ export async function POST(request) {
 
     if (authorization.response) return authorization.response;
 
+    const db = await getTenantDb(authorization.user);
+
     let body;
 
     try {
@@ -156,7 +160,7 @@ export async function POST(request) {
       return errorResponse(validationError, 400);
     }
 
-    const result = await pool.query(
+    const result = await db.query(
       `
         INSERT INTO units_of_measure (
           unit_code, unit_name, description, is_active

@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export async function GET(request) {
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
     const { searchParams } = new URL(request.url);
 
     const supplierId = searchParams.get("supplierId");
@@ -10,7 +14,7 @@ export async function GET(request) {
     const endDate = searchParams.get("endDate");
 
     // Load suppliers for the dropdown.
-    const suppliersResult = await pool.query(`
+    const suppliersResult = await db.query(`
       SELECT supplier_id, supplier_code, supplier_name, opening_balance
       FROM suppliers
       ORDER BY supplier_name ASC
@@ -32,7 +36,7 @@ export async function GET(request) {
       );
     }
 
-    const supplierResult = await pool.query(
+    const supplierResult = await db.query(
       `SELECT supplier_id, supplier_code, supplier_name, opening_balance
        FROM suppliers
        WHERE supplier_id = $1`,
@@ -67,7 +71,7 @@ export async function GET(request) {
 
     // Opening balance for the selected period:
     // supplier opening balance + earlier purchases - earlier payments.
-    const openingResult = await pool.query(
+    const openingResult = await db.query(
       `
       SELECT
         COALESCE((
@@ -100,7 +104,7 @@ export async function GET(request) {
       previousPayments;
 
     // Get purchases and payments for the selected date range.
-    const transactionsResult = await pool.query(
+    const transactionsResult = await db.query(
       `
       SELECT *
       FROM (

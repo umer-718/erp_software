@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 import {
@@ -17,8 +17,10 @@ export async function GET() {
         const user = await getCurrentUser();
         await requirePermission(user, BOM_PERMISSION, "view");
 
+        const db = await getTenantDb(user);
+
         const [productsResult, subProductsResult] = await Promise.all([
-            pool.query(
+            db.query(
                 `
                 SELECT
                     product_id,
@@ -35,7 +37,7 @@ export async function GET() {
                 ORDER BY product_name
                 `
             ),
-            pool.query(
+            db.query(
                 `
                 SELECT
                     sub_product_id,

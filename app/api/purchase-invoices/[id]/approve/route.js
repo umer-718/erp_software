@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -88,7 +88,7 @@ function isStockItem(itemType) {
 // ============================================================
 
 export async function POST(request, { params }) {
-    const client = await pool.connect();
+    let client;
 
     let transactionStarted = false;
 
@@ -117,6 +117,10 @@ export async function POST(request, { params }) {
             error.status = 400;
             throw error;
         }
+
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+        client = await db.connect();
 
         await client.query("BEGIN");
         transactionStarted = true;
@@ -669,6 +673,6 @@ export async function POST(request, { params }) {
 
         return errorResponse(error);
     } finally {
-        client.release();
+        client?.release();
     }
 }

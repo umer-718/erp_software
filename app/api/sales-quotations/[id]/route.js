@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getOperationalPool } from "@/lib/db";
+import { attachUserNames, getCompanyProfile } from "@/lib/tenant";
 import { authorizeSalesQuotations } from "@/lib/sales-quotations-auth";
 
 export const runtime = "nodejs";
@@ -136,21 +137,12 @@ async function getQuotation(client, quotationId, companyId) {
             c.phone AS customer_phone,
             c.email AS customer_email,
             c.address AS customer_address,
-            w.warehouse_name,
-            co.company_name,
-            creator.full_name AS created_by_name,
-            updater.full_name AS updated_by_name
+            w.warehouse_name
         FROM sales_quotations q
         LEFT JOIN customers c
             ON c.customer_id = q.customer_id
         LEFT JOIN warehouses w
             ON w.warehouse_id = q.warehouse_id
-        INNER JOIN companies co
-            ON co.company_id = q.company_id
-        LEFT JOIN users creator
-            ON creator.user_id = q.created_by
-        LEFT JOIN users updater
-            ON updater.user_id = q.updated_by
         WHERE q.quotation_id = $1
           AND q.company_id = $2
         `,
@@ -158,6 +150,18 @@ async function getQuotation(client, quotationId, companyId) {
     );
 
     if (header.rowCount === 0) return null;
+
+    const company = await getCompanyProfile(companyId);
+
+    if (!company) return null;
+
+    const quotationHeader = header.rows[0];
+    quotationHeader.company_name = company.company_name;
+
+    await attachUserNames(quotationHeader, {
+        created_by: "created_by_name",
+        updated_by: "updated_by_name",
+    });
 
     const lines = await client.query(
         `
@@ -170,7 +174,7 @@ async function getQuotation(client, quotationId, companyId) {
     );
 
     return {
-        ...header.rows[0],
+        ...quotationHeader,
         items: lines.rows,
     };
 }
@@ -193,8 +197,10 @@ export async function GET(request, context) {
             return errorResponse("Invalid quotation ID.");
         }
 
+        const db = await getOperationalPool(authorization.user.companyId);
+
         const quotation = await getQuotation(
-            pool,
+            db,
             quotationId,
             authorization.user.companyId
         );
@@ -218,7 +224,7 @@ export async function GET(request, context) {
 }
 
 export async function PUT(request, context) {
-    const client = await pool.connect();
+    let client;
 
     try {
         const authorization = await authorizeSalesQuotations("update");
@@ -229,6 +235,9 @@ export async function PUT(request, context) {
                 authorization.status
             );
         }
+
+        const db = await getOperationalPool(authorization.user.companyId);
+        client = await db.connect();
 
         const params = await context.params;
         const quotationId = Number(params.id);
@@ -460,7 +469,7 @@ export async function PUT(request, context) {
             quotationId,
         });
     } catch (error) {
-        await client.query("ROLLBACK");
+        await client?.query("ROLLBACK");
 
         console.error("PUT quotation error:", error);
 
@@ -485,6 +494,6 @@ export async function PUT(request, context) {
             clientError ? 400 : 500
         );
     } finally {
-        client.release();
+        client?.release();
     }
 }

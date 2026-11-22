@@ -1,11 +1,15 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request, { params }) {
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
     const { id } = await params;
     const productId = Number(id);
 
@@ -16,7 +20,7 @@ export async function GET(request, { params }) {
       );
     }
 
-    const productResult = await pool.query(
+    const productResult = await db.query(
       `SELECT product_id, sku, product_name, unit
        FROM products
        WHERE product_id = $1`,
@@ -30,7 +34,7 @@ export async function GET(request, { params }) {
       );
     }
 
-    const transactionResult = await pool.query(
+    const transactionResult = await db.query(
       `SELECT
          inventory_transaction_id,
          transaction_date,

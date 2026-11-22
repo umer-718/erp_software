@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import pool, { getOperationalPool } from "@/lib/db";
+import { getCompanyProfile } from "@/lib/tenant";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 
@@ -129,8 +130,8 @@ function calculateItems(items) {
     };
 }
 
-async function findOrder(orderId, companyId) {
-    const result = await pool.query(
+async function findOrder(db, orderId, companyId) {
+    const result = await db.query(
         `
         SELECT *
         FROM sales_orders
@@ -142,8 +143,8 @@ async function findOrder(orderId, companyId) {
     return result.rows[0] || null;
 }
 
-async function loadItems(orderId) {
-    const result = await pool.query(
+async function loadItems(db, orderId) {
+    const result = await db.query(
         `
         SELECT *
         FROM sales_order_items
@@ -165,6 +166,8 @@ export async function GET(request, { params }) {
             throw new Error("FORBIDDEN");
         }
 
+        const db = await getOperationalPool(context.companyId);
+
         const { id } = await params;
         const orderId = Number(id);
 
@@ -175,7 +178,7 @@ export async function GET(request, { params }) {
             );
         }
 
-        const order = await pool.query(
+        const order = await db.query(
             `
             SELECT
                 so.*,
@@ -186,13 +189,10 @@ export async function GET(request, { params }) {
                 c.address AS customer_address,
                 c.credit_limit AS current_credit_limit,
                 w.warehouse_name,
-                co.company_name,
-                co.currency AS company_currency,
                 q.quotation_number AS source_quotation_number
             FROM sales_orders so
             LEFT JOIN customers c ON c.customer_id = so.customer_id
             LEFT JOIN warehouses w ON w.warehouse_id = so.warehouse_id
-            LEFT JOIN companies co ON co.company_id = so.company_id
             LEFT JOIN sales_quotations q ON q.quotation_id = so.source_quotation_id
             WHERE so.order_id = $1
               AND so.company_id = $2
@@ -207,10 +207,15 @@ export async function GET(request, { params }) {
             );
         }
 
+        const company = await getCompanyProfile(context.companyId);
+        const orderRow = order.rows[0];
+        orderRow.company_name = company?.company_name ?? null;
+        orderRow.company_currency = company?.currency ?? null;
+
         return NextResponse.json({
             success: true,
-            order: order.rows[0],
-            items: await loadItems(orderId),
+            order: orderRow,
+            items: await loadItems(db, orderId),
         });
     } catch (error) {
         return errorResponse(error, "Could not load the Sales Order.");
@@ -219,7 +224,7 @@ export async function GET(request, { params }) {
 
 // PUT /api/sales-orders/:id
 export async function PUT(request, { params }) {
-    const client = await pool.connect();
+    let client;
 
     try {
         const context = await getContext();
@@ -227,6 +232,9 @@ export async function PUT(request, { params }) {
         if (!(await hasPermission(context.roleId, "sales_orders", "update"))) {
             throw new Error("FORBIDDEN");
         }
+
+        const db = await getOperationalPool(context.companyId);
+        client = await db.connect();
 
         const { id } = await params;
         const orderId = Number(id);
@@ -458,7 +466,7 @@ export async function PUT(request, { params }) {
 
         return errorResponse(error, "Could not update the Sales Order.");
     } finally {
-        client.release();
+        client?.release();
     }
 }
 
@@ -471,6 +479,8 @@ export async function DELETE(request, { params }) {
             throw new Error("FORBIDDEN");
         }
 
+        const db = await getOperationalPool(context.companyId);
+
         const { id } = await params;
         const orderId = Number(id);
 
@@ -481,7 +491,7 @@ export async function DELETE(request, { params }) {
             );
         }
 
-        const result = await pool.query(
+        const result = await db.query(
             `
             DELETE FROM sales_orders
             WHERE order_id = $1

@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -91,6 +91,8 @@ export async function GET(request) {
             );
         }
 
+        const db = await getTenantDb(user);
+
         const { searchParams } = new URL(request.url);
 
         const customerId = positiveId(searchParams.get("customerId"));
@@ -111,7 +113,7 @@ export async function GET(request) {
             return jsonError("From Date cannot be later than To Date.");
         }
 
-        const customersResult = await pool.query(`
+        const customersResult = await db.query(`
             SELECT
                 customer_id,
                 customer_code,
@@ -140,7 +142,7 @@ export async function GET(request) {
             });
         }
 
-        const customerResult = await pool.query(`
+        const customerResult = await db.query(`
             SELECT
                 customer_id,
                 customer_code,
@@ -164,7 +166,7 @@ export async function GET(request) {
          * Details are returned as JSON so the frontend can expand
          * each transaction without making another API request.
          */
-        const transactionResult = await pool.query(
+        const transactionResult = await db.query(
             `
             WITH receivable_accounts AS (
                 SELECT $2::INTEGER AS account_id

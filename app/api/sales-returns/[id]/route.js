@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getOperationalPool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -510,13 +510,15 @@ export async function GET(request, context) {
             return auth.response;
         }
 
+        const db = await getOperationalPool(auth.companyId);
+
         const returnId = await getReturnId(context);
 
         if (!Number.isInteger(returnId) || returnId <= 0) {
             return errorResponse("Invalid Sales Return ID.");
         }
 
-        const result = await pool.query(
+        const result = await db.query(
             `
             SELECT
                 sr.*,
@@ -541,7 +543,7 @@ export async function GET(request, context) {
             return errorResponse("Sales Return not found.", 404);
         }
 
-        const items = await pool.query(
+        const items = await db.query(
             `
             SELECT
                 sri.*,
@@ -601,6 +603,8 @@ export async function PUT(request, context) {
         if (auth.response) {
             return auth.response;
         }
+
+        const db = await getOperationalPool(auth.companyId);
 
         const returnId = await getReturnId(context);
 
@@ -663,7 +667,7 @@ export async function PUT(request, context) {
             return errorResponse("Add at least one return item.");
         }
 
-        client = await pool.connect();
+        client = await db.connect();
 
         await client.query("BEGIN");
         transactionStarted = true;
@@ -841,13 +845,15 @@ export async function DELETE(request, context) {
             return auth.response;
         }
 
+        const db = await getOperationalPool(auth.companyId);
+
         const returnId = await getReturnId(context);
 
         if (!Number.isInteger(returnId) || returnId <= 0) {
             return errorResponse("Invalid Sales Return ID.");
         }
 
-        client = await pool.connect();
+        client = await db.connect();
 
         await client.query("BEGIN");
         transactionStarted = true;

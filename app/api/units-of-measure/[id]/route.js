@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 
 export const runtime = "nodejs";
@@ -91,6 +91,10 @@ function validateBody(body) {
 // PUT: Update an existing unit
 export async function PUT(request, { params }) {
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
     const unitId = await getUnitId(params);
 
     if (!unitId) {
@@ -119,7 +123,7 @@ export async function PUT(request, { params }) {
     const description = String(body.description ?? "").trim();
     const isActive = body.is_active ?? true;
 
-    const result = await pool.query(
+    const result = await db.query(
       `
         UPDATE units_of_measure
         SET
@@ -165,13 +169,17 @@ export async function PUT(request, { params }) {
 // DELETE: Delete an existing unit
 export async function DELETE(request, { params }) {
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
     const unitId = await getUnitId(params);
 
     if (!unitId) {
       return errorResponse("Invalid unit ID.", 400);
     }
 
-    const result = await pool.query(
+    const result = await db.query(
       `
         DELETE FROM units_of_measure
         WHERE unit_id = $1

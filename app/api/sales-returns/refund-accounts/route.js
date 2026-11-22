@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import  pool  from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -18,7 +18,9 @@ export async function GET() {
 
         await requirePermission(user, "sales_returns", "view");
 
-        const result = await pool.query(`
+        const db = await getTenantDb(user);
+
+        const result = await db.query(`
             SELECT
                 account_id,
                 account_code,

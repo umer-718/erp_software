@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 const ACCOUNTS = {
   INVENTORY: 7,
@@ -12,6 +12,10 @@ const ACCOUNTS = {
 
 export async function GET(request) {
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
     const { searchParams } = new URL(request.url);
     const purchaseId = searchParams.get("id");
 
@@ -20,7 +24,7 @@ export async function GET(request) {
     // --------------------------------------------------------
 
     if (purchaseId) {
-      const purchaseResult = await pool.query(
+      const purchaseResult = await db.query(
         `
         SELECT
           p.purchase_id,
@@ -71,7 +75,7 @@ export async function GET(request) {
 
       const purchase = purchaseResult.rows[0];
 
-      const itemsResult = await pool.query(
+      const itemsResult = await db.query(
         `
         SELECT
           pi.purchase_item_id,
@@ -106,7 +110,7 @@ export async function GET(request) {
     // ALL PURCHASES
     // --------------------------------------------------------
 
-    const result = await pool.query(`
+    const result = await db.query(`
       SELECT
         p.purchase_id,
         p.purchase_number,
@@ -165,7 +169,11 @@ export async function GET(request) {
 // ============================================================
 
 export async function POST(request) {
-  const client = await pool.connect();
+  const tenant = await getTenantContext();
+  if (!tenant) return unauthorizedResponse();
+  const { db } = tenant;
+
+  const client = await db.connect();
 
   try {
     const body = await request.json();
@@ -790,7 +798,7 @@ export async function POST(request) {
     // ========================================================
 
     const completePurchaseResult =
-      await pool.query(
+      await db.query(
         `
         SELECT
           p.purchase_id,
@@ -826,7 +834,7 @@ export async function POST(request) {
       completePurchaseResult.rows[0];
 
     const itemsResult =
-      await pool.query(
+      await db.query(
         `
         SELECT
           pi.purchase_item_id,
@@ -902,7 +910,11 @@ export async function POST(request) {
 // ============================================================
 
 export async function PUT(request) {
-  const client = await pool.connect();
+  const tenant = await getTenantContext();
+  if (!tenant) return unauthorizedResponse();
+  const { db } = tenant;
+
+  const client = await db.connect();
 
   try {
     const body = await request.json();
@@ -1801,7 +1813,7 @@ export async function PUT(request) {
     // ========================================================
 
     const updatedPurchaseResult =
-      await pool.query(
+      await db.query(
         `
         SELECT
           p.purchase_id,
@@ -1844,7 +1856,7 @@ export async function PUT(request) {
       updatedPurchaseResult.rows[0];
 
     const updatedItemsResult =
-      await pool.query(
+      await db.query(
         `
         SELECT
           pi.purchase_item_id,

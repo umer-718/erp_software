@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -149,7 +149,9 @@ export async function GET() {
             return jsonError("Company information is missing.", 400);
         }
 
-        const result = await pool.query(
+        const db = await getTenantDb(user);
+
+        const result = await db.query(
             `
             SELECT
                 au.assembly_unbuild_id,
@@ -318,7 +320,9 @@ export async function POST(request) {
             return jsonError("Unbuild quantity is too large.", 400);
         }
 
-        client = await pool.connect();
+        const db = await getTenantDb(user);
+
+        client = await db.connect();
 
         await client.query("BEGIN");
         transactionStarted = true;

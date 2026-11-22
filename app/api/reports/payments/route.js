@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export async function GET() {
   try {
-    const sales = await pool.query(`
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+    const sales = await db.query(`
       SELECT
         p.payment_id,
         p.payment_number,
@@ -20,7 +23,7 @@ export async function GET() {
       ORDER BY p.payment_date DESC, p.payment_id DESC
     `);
 
-    const purchases = await pool.query(`
+    const purchases = await db.query(`
       SELECT
         p.payment_id,
         p.payment_number,

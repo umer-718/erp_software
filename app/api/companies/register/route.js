@@ -1,7 +1,11 @@
 
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import pool, { provisionCompanyDatabase } from "@/lib/db";
+import pool, { CENTRAL_DATABASE_NAME, provisionCompanyDatabase } from "@/lib/db";
+import {
+    companyDatabaseName,
+    companyDatabaseNameError,
+} from "@/lib/tenant-tables";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 
@@ -755,6 +759,16 @@ export async function POST(request) {
         );
     }
 
+    // The company's database is named after it (erp_<name>).
+    const companyNameError = companyDatabaseNameError(
+        companyName,
+        CENTRAL_DATABASE_NAME
+    );
+
+    if (companyNameError) {
+        return jsonError(companyNameError);
+    }
+
     if (
         phone.length > 50 ||
         address.length > 500 ||
@@ -1398,9 +1412,10 @@ export async function POST(request) {
                     company,
                     assignedUser,
                     companyDatabase: {
-                        databaseName: `erp_company_${String(
+                        databaseName: companyDatabaseName(
+                            company.company_name,
                             company.company_id
-                        ).padStart(3, "0")}`,
+                        ),
                         status: "FAILED",
                     },
                 },
@@ -1494,6 +1509,18 @@ export async function POST(request) {
             return jsonError(
                 error.message,
                 400,
+                error
+            );
+        }
+
+        if (
+            error?.code === "23505" &&
+            (error.constraint === "companies_company_name_unique_idx" ||
+                error.constraint === "companies_database_slug_unique_idx")
+        ) {
+            return jsonError(
+                "A company with this name (or a very similar one) is already registered.",
+                409,
                 error
             );
         }

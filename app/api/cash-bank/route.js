@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export async function GET() {
   try {
-    const result = await pool.query(`
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+    const result = await db.query(`
       SELECT
         j.journal_id,
         j.journal_number,
@@ -62,9 +65,13 @@ export async function GET() {
 }
 
 export async function POST(request) {
-  const client = await pool.connect();
+  let client;
 
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+    client = await db.connect();
     const body = await request.json();
 
     const {
@@ -323,7 +330,7 @@ export async function POST(request) {
       { status: 201 }
     );
   } catch (error) {
-    await client.query("ROLLBACK");
+    await client?.query("ROLLBACK");
 
     console.error("CASH BANK POST ERROR:", error);
 
@@ -336,6 +343,6 @@ export async function POST(request) {
       { status: 500 }
     );
   } finally {
-    client.release();
+    client?.release();
   }
 }

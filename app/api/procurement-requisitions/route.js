@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import {
     requirePermission,
@@ -73,7 +73,10 @@ export async function GET() {
     ),
 ]);
 
-        const result = await pool.query(
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+
+        const result = await db.query(
             `
             SELECT
                 ri.requisition_item_id AS seq_id,
@@ -255,7 +258,9 @@ export async function POST(request) {
         }
 
         // Acquire database connection after validation.
-        client = await pool.connect();
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+        client = await db.connect();
 
         await client.query("BEGIN");
         transactionStarted = true;

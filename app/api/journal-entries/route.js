@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 // =====================================================
 // GET JOURNAL ENTRIES
@@ -10,6 +10,9 @@ import pool from "@/lib/db";
 
 export async function GET(request) {
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
@@ -33,7 +36,7 @@ export async function GET(request) {
         );
       }
 
-      const journalResult = await pool.query(
+      const journalResult = await db.query(
         `
         SELECT
           j.journal_id,
@@ -82,7 +85,7 @@ export async function GET(request) {
       // GET JOURNAL LINES
       // =================================================
 
-      const linesResult = await pool.query(
+      const linesResult = await db.query(
         `
         SELECT
           ji.journal_line_id,
@@ -122,7 +125,7 @@ export async function GET(request) {
     // GET ALL JOURNALS
     // ===================================================
 
-    const result = await pool.query(`
+    const result = await db.query(`
       SELECT
         j.journal_id,
         j.journal_number,
@@ -183,9 +186,13 @@ export async function GET(request) {
 // =====================================================
 
 export async function POST(request) {
-  const client = await pool.connect();
+  let client;
 
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+    client = await db.connect();
     const body = await request.json();
 
     const {
@@ -428,7 +435,7 @@ export async function POST(request) {
     );
   } catch (error) {
     try {
-      await client.query("ROLLBACK");
+      await client?.query("ROLLBACK");
     } catch {}
 
     console.error(
@@ -446,7 +453,7 @@ export async function POST(request) {
       { status: 500 }
     );
   } finally {
-    client.release();
+    client?.release();
   }
 }
 
@@ -456,9 +463,13 @@ export async function POST(request) {
 // =====================================================
 
 export async function PUT(request) {
-  const client = await pool.connect();
+  let client;
 
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+    client = await db.connect();
     const body = await request.json();
 
     const journalId =
@@ -762,7 +773,7 @@ export async function PUT(request) {
     });
   } catch (error) {
     try {
-      await client.query("ROLLBACK");
+      await client?.query("ROLLBACK");
     } catch {}
 
     console.error(
@@ -780,7 +791,7 @@ export async function PUT(request) {
       { status: 500 }
     );
   } finally {
-    client.release();
+    client?.release();
   }
 }
 

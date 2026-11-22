@@ -1,8 +1,18 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
 
 export async function GET(request) {
   try {
+    const user = await getCurrentUser();
+
+    if (!user?.companyId) {
+      return NextResponse.json(
+        { success: false, message: "Authentication required." },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
 
     const page = Math.max(
@@ -24,8 +34,9 @@ export async function GET(request) {
 
     const offset = (page - 1) * limit;
 
-    const values = [];
-    const conditions = [];
+    // Only the logged-in company's audit trail.
+    const values = [Number(user.companyId)];
+    const conditions = ["company_id = $1"];
 
     if (search) {
       values.push(`%${search}%`);

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import * as XLSX from "xlsx";
@@ -73,6 +73,8 @@ export async function POST(request) {
       );
     }
 
+    const db = await getTenantDb(user);
+
     const formData = await request.formData();
     const file = formData.get("file");
 
@@ -126,7 +128,7 @@ export async function POST(request) {
     let skipped = 0;
     const seenNames = new Set();
 
-    client = await pool.connect();
+    client = await db.connect();
     await client.query("BEGIN");
     transactionStarted = true;
 

@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 
@@ -56,7 +56,8 @@ export async function GET() {
       );
     }
 
-    client = await pool.connect();
+    const db = await getTenantDb(user);
+    client = await db.connect();
 
     const [
       salesResult,

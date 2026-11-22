@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import pool, { getOperationalPool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 
@@ -177,6 +177,7 @@ export async function GET() {
     try {
         const context = await getContext();
         await checkPermission(context, "view");
+        const db = await getOperationalPool(context.companyId);
 
         const [
     challansResult,
@@ -185,7 +186,7 @@ export async function GET() {
     companyResult,
     productsResult,
 ] = await Promise.all([
-                pool.query(
+                db.query(
                     `
                     SELECT
                         dc.delivery_challan_id,
@@ -229,7 +230,7 @@ export async function GET() {
                     `,
                     [context.companyId]
                 ),
-                pool.query(
+                db.query(
                     `
                     SELECT customer_id, customer_code, customer_name,
                            phone, email, address, credit_limit, opening_balance
@@ -238,7 +239,7 @@ export async function GET() {
                     ORDER BY customer_name
                     `
                 ),
-                pool.query(
+                db.query(
                     `
                     SELECT warehouse_id, warehouse_code, warehouse_name, location
                     FROM warehouses
@@ -256,7 +257,7 @@ export async function GET() {
                     [context.companyId]
                 ),
 
-                pool.query(
+                db.query(
     `
     SELECT
         product_id,
@@ -307,11 +308,13 @@ export async function GET() {
 
 // POST /api/delivery-challans
 export async function POST(request) {
-    const client = await pool.connect();
+    let client;
 
     try {
         const context = await getContext();
         await checkPermission(context, "create");
+        const db = await getOperationalPool(context.companyId);
+        client = await db.connect();
 
         const body = await request.json();
         const calculated = calculateItems(body.items);
@@ -364,6 +367,11 @@ export async function POST(request) {
                 { status: 400 }
             );
         }
+
+        const companyResult = await pool.query(
+            `SELECT currency, company_name FROM companies WHERE company_id = $1`,
+            [context.companyId]
+        );
 
         await client.query("BEGIN");
 
@@ -580,11 +588,6 @@ export async function POST(request) {
                 { status: 400 }
             );
         }
-
-        const companyResult = await client.query(
-            `SELECT currency, company_name FROM companies WHERE company_id = $1`,
-            [context.companyId]
-        );
 
         const currency = String(
             body.currency || companyResult.rows[0]?.currency || "PKR"
@@ -818,6 +821,6 @@ export async function POST(request) {
 
         return errorResponse(error, "Could not save the Delivery Challan.");
     } finally {
-        client.release();
+        client?.release();
     }
 }

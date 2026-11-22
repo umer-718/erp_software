@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export async function GET(request) {
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
     const { searchParams } = new URL(request.url);
     const accountId = searchParams.get("accountId");
 
@@ -16,7 +19,7 @@ export async function GET(request) {
       );
     }
 
-    const result = await pool.query(
+    const result = await db.query(
       `
       SELECT
         j.journal_id,

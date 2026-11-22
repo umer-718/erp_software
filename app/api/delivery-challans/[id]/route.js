@@ -1,6 +1,7 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import pool, { getOperationalPool } from "@/lib/db";
+import { getCompanyProfile } from "@/lib/tenant";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 
@@ -82,9 +83,11 @@ export async function GET(request, { params }) {
             throw new Error("FORBIDDEN");
         }
 
+        const db = await getOperationalPool(context.companyId);
+
         const id = await getId(params);
 
-        const challanResult = await pool.query(
+        const challanResult = await db.query(
             `
             SELECT
                 dc.*,
@@ -95,14 +98,10 @@ export async function GET(request, { params }) {
                 c.address AS customer_address,
                 w.warehouse_name,
                 w.location AS warehouse_location,
-                co.company_name,
-                co.address AS company_address,
-                co.phone AS company_phone,
                 so.order_number AS source_order_number
             FROM delivery_challans dc
             LEFT JOIN customers c ON c.customer_id = dc.customer_id
             LEFT JOIN warehouses w ON w.warehouse_id = dc.warehouse_id
-            LEFT JOIN companies co ON co.company_id = dc.company_id
             LEFT JOIN sales_orders so ON so.order_id = dc.source_order_id
             WHERE dc.delivery_challan_id = $1
               AND dc.company_id = $2
@@ -117,7 +116,13 @@ export async function GET(request, { params }) {
             );
         }
 
-        const itemsResult = await pool.query(
+        const company = await getCompanyProfile(context.companyId);
+        const challan = challanResult.rows[0];
+        challan.company_name = company?.company_name ?? null;
+        challan.company_address = company?.address ?? null;
+        challan.company_phone = company?.phone ?? null;
+
+        const itemsResult = await db.query(
             `
             SELECT *
             FROM delivery_challan_items
@@ -129,7 +134,7 @@ export async function GET(request, { params }) {
 
         return NextResponse.json({
             success: true,
-            challan: challanResult.rows[0],
+            challan,
             items: itemsResult.rows,
             permissions: {
                 canUpdate: await hasPermission(
@@ -159,7 +164,7 @@ export async function GET(request, { params }) {
 // PUT /api/delivery-challans/:id
 // Only draft challans can be edited.
 export async function PUT(request, { params }) {
-    const client = await pool.connect();
+    let client;
 
     try {
         const context = await getContext();
@@ -167,6 +172,9 @@ export async function PUT(request, { params }) {
         if (!(await hasPermission(context.roleId, "delivery_challans", "update"))) {
             throw new Error("FORBIDDEN");
         }
+
+        const db = await getOperationalPool(context.companyId);
+        client = await db.connect();
 
         const id = await getId(params);
         const body = await request.json();
@@ -436,7 +444,7 @@ export async function PUT(request, { params }) {
 
         return errorResponse(error, "Could not update the Delivery Challan.");
     } finally {
-        client.release();
+        client?.release();
     }
 }
 
@@ -449,9 +457,11 @@ export async function DELETE(request, { params }) {
             throw new Error("FORBIDDEN");
         }
 
+        const db = await getOperationalPool(context.companyId);
+
         const id = await getId(params);
 
-        const result = await pool.query(
+        const result = await db.query(
             `
             DELETE FROM delivery_challans
             WHERE delivery_challan_id = $1

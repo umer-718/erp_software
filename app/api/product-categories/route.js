@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 
@@ -48,7 +48,9 @@ export async function GET() {
     const access = await authorize("view");
     if (access.response) return access.response;
 
-    const result = await pool.query(`
+    const db = await getTenantDb(access.user);
+
+    const result = await db.query(`
       SELECT
         category_id,
         category_name,
@@ -78,6 +80,8 @@ export async function POST(request) {
     const access = await authorize("create");
     if (access.response) return access.response;
 
+    const db = await getTenantDb(access.user);
+
     let body;
 
     try {
@@ -105,7 +109,7 @@ export async function POST(request) {
       return jsonError("Invalid active status.", 400);
     }
 
-    const result = await pool.query(
+    const result = await db.query(
       `INSERT INTO product_categories
         (category_name, description, is_active)
        VALUES ($1, $2, $3)

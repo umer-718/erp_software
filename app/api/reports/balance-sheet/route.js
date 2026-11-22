@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export async function GET() {
   try {
-    const result = await pool.query(`
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+    const result = await db.query(`
       SELECT
         a.account_id,
         a.account_code,
@@ -88,7 +91,7 @@ export async function GET() {
     }
 
     // Calculate current period profit.
-    const profitResult = await pool.query(`
+    const profitResult = await db.query(`
       SELECT
         COALESCE(
           SUM(

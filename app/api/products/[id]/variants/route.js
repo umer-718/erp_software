@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 function validId(value) {
   return /^\d+$/.test(String(value)) && Number(value) > 0;
@@ -98,7 +98,11 @@ export async function GET(request, { params }) {
   }
 
   try {
-    const result = await pool.query(
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
+    const result = await db.query(
   `
   SELECT
     sp.sub_product_id AS variant_id,
@@ -198,7 +202,10 @@ export async function POST(request, { params }) {
     unitsPerParent,
   } = parsed.values;
 
-  const client = await pool.connect();
+  const tenant = await getTenantContext();
+  if (!tenant) return unauthorizedResponse();
+  const { db } = tenant;
+  const client = await db.connect();
 
   try {
     await client.query("BEGIN");
@@ -347,7 +354,11 @@ export async function PUT(request, { params }) {
   } = parsed.values;
 
   try {
-    const result = await pool.query(
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
+    const result = await db.query(
       `UPDATE sub_products
        SET
          sku = $1,
@@ -433,7 +444,11 @@ export async function DELETE(request, { params }) {
   }
 
   try {
-    const result = await pool.query(
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
+    const result = await db.query(
       `DELETE FROM sub_products
        WHERE sub_product_id = $1
          AND product_id = $2

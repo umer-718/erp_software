@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantContext, unauthorizedResponse } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request, { params }) {
   try {
+    const tenant = await getTenantContext();
+    if (!tenant) return unauthorizedResponse();
+    const { db } = tenant;
+
     const { id } = await params;
     const invoiceId = Number(id);
 
@@ -16,7 +20,7 @@ export async function GET(request, { params }) {
     }
 
     // Confirm that the invoice exists.
-    const invoiceResult = await pool.query(
+    const invoiceResult = await db.query(
       `SELECT invoice_id, invoice_number
        FROM sales_invoices
        WHERE invoice_id = $1`,
@@ -32,7 +36,7 @@ export async function GET(request, { params }) {
 
     // Retrieve the actual posted accounting lines.
     // Include both the sales journal and COGS journal.
-    const result = await pool.query(
+    const result = await db.query(
       `SELECT
          je.journal_id,
          je.journal_number,

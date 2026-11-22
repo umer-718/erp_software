@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { getTenantDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
 
@@ -84,6 +84,9 @@ export async function GET(request, context) {
             "view"
         );
 
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+
         const companyId = positiveId(user.companyId);
         const receiptId = await getReceiptId(context);
 
@@ -95,7 +98,7 @@ export async function GET(request, context) {
             return validationError("Invalid Item Receipt ID.");
         }
 
-        const receiptResult = await pool.query(
+        const receiptResult = await db.query(
             `
             SELECT
                 ir.*,
@@ -140,7 +143,7 @@ export async function GET(request, context) {
             return validationError("Item Receipt not found.", 404);
         }
 
-        const itemsResult = await pool.query(
+        const itemsResult = await db.query(
             `
             SELECT
                 iri.*,
@@ -196,7 +199,7 @@ export async function GET(request, context) {
 // ============================================================
 
 export async function PATCH(request, context) {
-    const client = await pool.connect();
+    let client;
 
     let transactionStarted = false;
 
@@ -224,6 +227,10 @@ export async function PATCH(request, context) {
         }
 
         const body = await request.json();
+
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+        client = await db.connect();
 
         await client.query("BEGIN");
         transactionStarted = true;
@@ -936,7 +943,7 @@ export async function PATCH(request, context) {
         return apiError(error);
 
     } finally {
-        client.release();
+        client?.release();
     }
 }
 
@@ -945,7 +952,7 @@ export async function PATCH(request, context) {
 // ============================================================
 
 export async function DELETE(request, context) {
-    const client = await pool.connect();
+    let client;
 
     let transactionStarted = false;
 
@@ -970,6 +977,10 @@ export async function DELETE(request, context) {
                 "Invalid company or Item Receipt ID."
             );
         }
+
+        // Operational data lives in the company's own database.
+        const db = await getTenantDb(user);
+        client = await db.connect();
 
         await client.query("BEGIN");
         transactionStarted = true;
@@ -1035,6 +1046,6 @@ export async function DELETE(request, context) {
         return apiError(error);
 
     } finally {
-        client.release();
+        client?.release();
     }
 }
